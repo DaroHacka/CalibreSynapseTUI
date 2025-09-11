@@ -160,17 +160,7 @@ This will generate:
 python CalibreSynapseTUI.py
 ```
 
----
 
-## 🖼️ Screenshot Preview
-
-Here’s a preview of a typical CalibreSynapseTUI session — showing label filters, book matches, and series grouping:
-
-> *(You can replace this with your own screenshot once the interface is finalized)*
-
-![TUI Interface Example](https://realpython.com/python-textual/demo.gif)
-
----
 
 ## 📦 License
 
