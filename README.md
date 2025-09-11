@@ -45,6 +45,10 @@ Books are visually distinguished:
 
 ---
 
+<p align="center">
+  <img src="https://github.com/DaroHacka/CalibreSynapseTUI/blob/main/CalibreSynapseTUI%20dashboard.png?raw=true" alt="CalibreSynapseTUI Dashboard">
+</p>
+
 ## 🖥️ TUI-Specific Enhancements
 
 The TUI version introduces several new features that elevate the experience:
