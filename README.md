@@ -4,6 +4,7 @@
 
 The TUI framework is implemented using Python’s `urwid` library, allowing for a responsive, scrollable, and fully interactive experience inside the terminal. This graphical layer transforms the way you filter and refine your book searches: instead of typing commands, you can navigate through expandable fields, toggle labels, and visually explore your library’s semantic landscape.
 
+Read full detailed guide here: https://github.com/DaroHacka/CalibreSynapseCLI/blob/main/README.md
 ---
 
 ## 🚀 Features
