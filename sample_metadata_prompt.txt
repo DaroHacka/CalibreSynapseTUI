@@ -1,0 +1,48 @@
+This command updates metadata for a specific book in your Calibre library using the calibredb CLI tool. Replace $ID with the book’s numeric ID and update the --with-library path to match your Calibre library location.
+Each --field line corresponds to a metadata column, either a custom column (prefixed with #) or a default Calibre field (no prefix). You can paste AI-generated labels directly into these fields.
+
+
+calibredb set_metadata $ID \
+    --with-library "path/to/your/Calibre/Library/" \
+    --field "#genres:" \
+    --field "#subgenre:" \
+    --field "#book_format:" \
+    --field "#provenance:" \
+    --field "#writing_style:" \
+    --field "#emotional_tone:" \
+    --field "#character_traits:" \
+    --field "#book_setting:" \
+    --field "#reading_mood:" \
+    --field "#reading_level:" \
+    --field "#publication_period:" \
+    --field "#awards:" \
+    --field "#themes:" \
+    --field "#length:" \
+    --field "#pacing:" \
+    --field "#perspective:" \
+    --field "#subject:" \
+    --field "#movement:" \
+    --field "#stem:" \
+    --field "#discipline:" \
+    --field "authors:" \
+    --field "publisher:" \
+    --field "series:" \
+    --field "pubdate:" \
+    --field "comments:"
+done
+
+-----------
+Example Usage:
+
+calibredb set_metadata 123 \
+  --with-library "/home/user/Calibre Library/" \
+  --field "#themes: existential dread, redemption" \
+  --field "#book_setting: Japan, urban district" \
+  --field "comments: 📘 A surreal journey through memory and loss..."
+
+-----------
+
+Note:
+Calibre distinguishes between default columns and user-defined columns by prefixing custom fields with #. For example:
+- #genres → custom column
+- authors → default column
