@@ -45,7 +45,7 @@ class CalibreEngine:
             for canonical_label, variants in self.parser[field].items():
                 canonical.append(canonical_label)
         raw_labels = self.dynamic_vocab.get(field, []) + self.dynamic_vocab.get(f"#{field}", [])
-        raw = [label for label in raw_labels]  # ← FIXED: no filtering
+        raw = [label for label in raw_labels]
         return {"canonical": sorted(set(canonical)), "raw": sorted(set(raw))}
 
     def normalize_label(self, field, label):
@@ -120,3 +120,9 @@ class CalibreEngine:
             "query_labels": sorted(include_labels),
             "refinement_closed": refinement_closed
         }
+
+    def get_all_labels(self):
+        all_labels = set()
+        for field in self.dynamic_vocab:
+            all_labels.update(self.dynamic_vocab[field])
+        return list(all_labels)
