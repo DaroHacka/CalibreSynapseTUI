@@ -49,6 +49,8 @@ To run CalibreSynapseCLI on Linux:
 - `config.json` — sample configuration for paths and metadata fields  
 - `sample_metadata_prompt.txt` — example prompt for AI-assisted label generation
 - `calibre_import.sh` — calibre book import script
+- `sample_generated_files.txt` — Want to see how the output files from semantic_compatibility_matrix_builder.py are structured? Check out the included sample.
+
 
 ## 📥 Book Import Script
 
