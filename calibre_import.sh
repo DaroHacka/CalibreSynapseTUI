@@ -2,7 +2,7 @@
 
 # === CONFIGURATION ===
 # Replace this with the path to your Calibre Library
-CALIBRE_LIB="/path/to/your/Calibre Library"
+CALIBRE_LIB="/srv/dev-disk-by-uuid-2856cdb9-5991-47dc-886b-1be20f8c2993/ArkVault/Calibre Library"
 
 # Log directory and file
 LOG_DIR="$HOME/.local/share/calibre_import"
@@ -39,7 +39,12 @@ elif [[ "$MODE" == "multi" ]]; then
 
     if [[ -d "$FOLDER_PATH" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Scanning folder: $FOLDER_PATH" >> "$LOG_FILE"
-        find "$FOLDER_PATH" -type f \( -iname "*.cbz" -o -iname "*.epub" -o -iname "*.pdf" \) | while read -r FILE; do
+        find "$FOLDER_PATH" -type f \( \
+            -iname "*.epub" -o -iname "*.pdf" -o -iname "*.cbz" -o -iname "*.cbr" -o \
+            -iname "*.mobi" -o -iname "*.azw" -o -iname "*.azw3" -o -iname "*.txt" -o \
+            -iname "*.djvu" -o -iname "*.lit" -o -iname "*.fb2" -o -iname "*.zip" -o \
+            -iname "*.rar" \
+        \) | while read -r FILE; do
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Adding: $FILE" >> "$LOG_FILE"
             calibredb add "$FILE" --with-library "$CALIBRE_LIB" >> "$LOG_FILE" 2>&1
         done
