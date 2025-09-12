@@ -19,11 +19,16 @@ logging.basicConfig(
 
 class CalibreUI:
     def __init__(self):
-        self.engine = CalibreEngine(
-            label_map_path="semantic_label_map.json",
-            vocab_path="dynamic_vocabulary.json",
-            parser_path="vocabulary_parser.json"
-        )
+        try:
+            self.engine = CalibreEngine(
+                label_map_path="semantic_label_map.json",
+                vocab_path="dynamic_vocabulary.json",
+                parser_path="vocabulary_parser.json"
+            )
+        except Exception as e:
+            print(f"❌ Engine failed: {e}")
+            self.engine = None
+
         self.selected_labels = set()
         self.expanded_categories = {}
         self.search_query = ""
@@ -43,8 +48,8 @@ class CalibreUI:
                        ('series', 'light green', '')]
         }
 
-        self.search_edit = urwid.Edit("🔎 Search Label: ")
         self.selected_text = urwid.Text("📖 Welcome to CalibreSynapse — where genre meets depth.")
+        self.search_edit = urwid.Edit("🔎 Search Label: ")
         self.label_listbox = urwid.ListBox(urwid.SimpleFocusListWalker([]))
         self.title_listbox = urwid.ListBox(urwid.SimpleFocusListWalker([]))
         self.suggestion_listbox = urwid.ListBox(urwid.SimpleFocusListWalker([
@@ -87,6 +92,7 @@ class CalibreUI:
             footer=self.footer
         )
 
+        print("✅ Reached loop setup")
         self.loop = urwid.MainLoop(self.layout, palette=self.themes[self.current_theme], unhandled_input=self.handle_input)
         self.frame_gen = self.book_frames()
         self.loop.set_alarm_in(0.1, self.animate_book)
@@ -94,6 +100,7 @@ class CalibreUI:
 
         self.build_label_list()
         self.update_titles()
+
     def switch_theme(self, button, theme_name):
         if theme_name in self.themes:
             self.current_theme = theme_name
@@ -119,6 +126,9 @@ class CalibreUI:
             self.build_label_list()
         elif key in ('t', 'T'):
             self.toggle_feeds(None)
+        elif key == 'enter':
+            query = self.search_edit.edit_text.strip()
+            self.perform_search(query)
 
     def run(self):
         self.loop.run()
@@ -141,7 +151,6 @@ class CalibreUI:
             ('weight', 1, left_column),
             ('weight', 2, main_right)
         ])
-
     def book_frames(self):
         frames = [
             "📘", "📗", "📙", "📕", "📓", "📔", "📒", "📚"
@@ -152,8 +161,47 @@ class CalibreUI:
         self.rotating_book_widget.set_text(next(self.frame_gen))
         loop.set_alarm_in(0.1, self.animate_book)
 
+    def on_search_keypress(self, edit, key):
+        if key == 'enter':
+            query = edit.edit_text.strip()
+            self.perform_search(query)
+
+    def perform_search(self, query):
+        self.search_query = query
+        if not self.engine:
+            self.label_listbox.body[:] = [urwid.Text("❌ Engine not initialized.")]
+            return
+
+        results = []
+        label_to_category = self.engine.label_to_category
+
+        for field in self.engine.dynamic_vocab:
+            for label in self.engine.dynamic_vocab[field]:
+                if query.lower() in label.lower():
+                    category = label_to_category.get(label.lower(), "Unknown")
+                    label_text = f"• {label} ({category})"
+                    btn = urwid.Button(label_text)
+                    urwid.connect_signal(btn, 'click', self.select_from_search, user_arg=label.lower())
+                    results.append(urwid.AttrMap(btn, 'raw', focus_map='reversed'))
+
+        if results:
+            self.label_listbox.body[:] = [urwid.Text(f"🔍 Results for '{query}':")] + results
+        else:
+            self.label_listbox.body[:] = [urwid.Text(f"❌ No matches for '{query}'")]
+
+    def select_from_search(self, button, label):
+        self.search_query = ""
+        self.search_edit.set_edit_text("")
+        self.selected_labels.add(label)
+        self.update_selected()
+        self.update_titles()
+        self.build_label_list()
+
     def toggle_label_direct(self, label):
         key = label.lower()
+        if not self.engine:
+            return
+
         all_labels = set()
         for field in self.engine.dynamic_vocab:
             all_labels.update([lbl.lower() for lbl in self.engine.dynamic_vocab[field]])
@@ -169,6 +217,10 @@ class CalibreUI:
     def build_label_list(self):
         walker = self.label_listbox.body
         walker.clear()
+
+        if not self.engine:
+            walker.append(urwid.Text("❌ Engine not initialized."))
+            return
 
         all_fields = sorted(self.engine.dynamic_vocab.keys())
         refinement = {}
@@ -223,6 +275,7 @@ class CalibreUI:
                 urwid.connect_signal(btn, 'click', self.toggle_label, user_arg=key)
                 style = 'selected' if is_selected else 'raw'
                 walker.append(urwid.AttrMap(btn, style, focus_map='reversed'))
+
     def toggle_category(self, button, field):
         self.expanded_categories[field] = not self.expanded_categories.get(field, False)
         self.build_label_list()
@@ -242,6 +295,10 @@ class CalibreUI:
 
         if not self.selected_labels:
             walker.append(urwid.Text("📘 Select a label to view matching titles."))
+            return
+
+        if not self.engine:
+            walker.append(urwid.Text("❌ Engine not initialized."))
             return
 
         result = self.engine.query(list(self.selected_labels))
@@ -275,9 +332,9 @@ class CalibreUI:
             elif title:
                 walker.append(urwid.Text(("title", f"📘 {title} — Author: {author}")))
             elif raw_series:
-                walker.append(urwid.Text(("series", f"📚 Series: {raw_series} — Author: {author}")))
+                walker.append(urwid.Text(("series", f"📚 Series: {raw_series}) — Author: {author}")))
 
-        count += 1
+            count += 1
 
     def toggle_feeds(self, button):
         self.feeds_enabled = not self.feeds_enabled
@@ -305,10 +362,10 @@ class CalibreUI:
                 title = entry.title
                 summary = entry.get("summary", "")
                 link = entry.get("link", "")
-                text = f"• {title}\n  {summary.strip()}\n  🔗 Read more: {link}"
-                items.append(urwid.Text(text))
+                items.append(urwid.Text(f"• {title}", wrap='any'))
+                items.append(urwid.Text(summary.strip(), wrap='any'))
+                items.append(urwid.Text(link, wrap='any'))
         return items
-
 # Entry point
 if __name__ == "__main__":
     print("🚀 Launching CalibreSynapse Urwid TUI with Enhanced Panels...")
@@ -316,3 +373,4 @@ if __name__ == "__main__":
         CalibreUI().run()
     except Exception as e:
         logging.error("Unhandled exception", exc_info=True)
+        print(f"❌ Application crashed: {e}")
