@@ -29,6 +29,34 @@ Read full detailed guide here: https://github.com/DaroHacka/CalibreSynapseCLI/bl
 
 ---
 
+## 🛠️ Requirements
+
+To run CalibreSynapseCLI on Linux:
+
+- Python 3  
+- Calibre Server installed and running  
+- Python packages:
+  ```bash
+  pip install pyfiglet feedparser urwid
+  ```
+
+---
+
+## 📁 Files Included
+
+- `CalibreSynapse.py` — the interactive CLI interface  
+- `Semantic_Compatibility_Matrix_Builder.py` — builds the semantic index  
+- `config.json` — sample configuration for paths and metadata fields  
+- `sample_metadata_prompt.txt` — example prompt for AI-assisted label generation
+- `calibre_import.sh` — calibre book import script
+
+## 📥 Book Import Script
+
+You need this file to easily upload digital books into your Calibre Library via terminal  
+./calibre_import  
+Do you want to import a single file or multiple files? (Type: single / multi)  
+insert path:
+
 ## 🔍 How CalibreSynapse Works
 
 CalibreSynapse isn’t just a metadata tool — it’s a **semantic search engine** for your personal library. Think of your labels as forming a vast constellation:  
@@ -43,6 +71,9 @@ Each label displays a number — the count of books that match your current sele
 Books are visually distinguished:
 - 🟦 **Standalone books** appear in one color  
 - 🟨 **Series** are shown in another, so you can track narrative arcs or thematic continuities
+
+It’s the kind of search engine you use while sipping a warm cup of coffee or maybe tea, reflecting on what you’d like to read next, especially when you're not following any specific reading program and just want something undefined or unexpected.  
+In my case, it mirrors the books I actually own, but I guess it could also be used for books you don’t have yet, maybe even your local library’s catalogue. I guess I could add a wishlist  to CalibreSynapse if I wanted to.
 
 ---
 
