@@ -1,0 +1,168 @@
+### semantic_label_map.json sample
+
+"323": {
+    "title": "The Honjin Murders",
+    "author": "Seishi Yokomizo",
+    "labels_by_field": {
+      "Genre": [
+        "classic detective fiction",
+        "mistery thriller"
+      ],
+      "Sub-Genre": [
+        "locked.room"
+      ],
+      "Book Format": [
+        "novel"
+      ],
+      "Provenance": [
+        "japan"
+      ],
+      "Writing Style": [
+        "atmospheric",
+        "detailed descriptions",
+        "elegant"
+      ],
+      "Narrative Structure": [
+        "reconstructed events"
+      ],
+      "Emotional Tone": [
+        "eerie",
+        "intellectual",
+        "suspenseful"
+      ],
+      "Main Character Traits": [
+        "aristocratic family",
+        "detective",
+        "mysterious outsider"
+      ],
+      "Book's Setting": [
+        "1930s",
+        "isolated mansion",
+        "rural japan"
+      ],
+      "Reading Mood": [
+        "immersive",
+        "perfect for mystery lovers"
+      ],
+      "Reading Level": [
+        "accessible",
+        "rich in historical and cultural details"
+      ],
+      "Publication Period": [
+        "classic"
+      ],
+      "Notability & Awards": [
+        "mystery writers of japan award (winner)"
+      ],
+      "Themes": [
+        "family secrets",
+        "honor",
+        "tradition vs. modernity"
+      ],
+      "Length": [
+        "short"
+      ],
+      "Pacing": [
+        "methodical unraveling of clues",
+        "steady"
+      ],
+      "Perspective": [
+        "omniscent narrator"
+      ]
+    },
+    "series": null
+  },
+
+---
+
+### dynamic_vocabulary sample
+
+"Genre": [
+    "action",
+    "adventure",
+    "adventure fiction",
+    "alternative comics",
+    "anthology",
+    "anthropomorphic fiction",
+    "autobiography",
+    "bildungsroman",
+    "biography",
+    "biopunk",
+    "classic detective fiction",
+    "classic mistery",
+    "comedy",
+    "comic strip",
+    "coming-of-age",
+    "contemporary",
+    "crime",
+[etc...]
+
+ "Writing Style": [
+    "absurdist",
+    "accessible",
+    "action-driven",
+    "allegorical",
+    "analytical",
+    "anthology",
+    "archival",
+    "atmospheric",
+    "bold",
+    "caricatured",
+    "cerebral",
+    "chaotic",
+    "character driven",
+    "character-driven",
+    "cinematic",
+    "classical",
+[etc...]
+
+### label_frequency.json sample
+
+ "Genre:mistery thriller": 6,
+  "Genre:classic detective fiction": 1,
+  "Sub-Genre:locked.room": 3,
+  "Book Format:novel": 134,
+  "Provenance:japan": 259,
+  "Writing Style:elegant": 1,
+  "Writing Style:atmospheric": 91,
+  "Writing Style:detailed descriptions": 1,
+  "Narrative Structure:reconstructed events": 24,
+  "Emotional Tone:suspenseful": 595,
+  "Emotional Tone:eerie": 146,
+  "Emotional Tone:intellectual": 5,
+  "Main Character Traits:detective": 6,
+  "Main Character Traits:aristocratic family": 1,
+  "Main Character Traits:mysterious outsider": 1,
+  "Book's Setting:rural japan": 25,
+  "Book's Setting:1930s": 1,
+  "Book's Setting:isolated mansion": 2,
+  "Reading Mood:immersive": 627
+[etc...]
+
+### flat_label_index.json sample
+
+"mistery thriller": [
+    "323",
+    "372",
+    "373",
+    "374",
+    "375",
+    "376"
+  ],
+  "classic detective fiction": [
+    "323"
+  ],
+  "locked.room": [
+    "323",
+    "1348",
+    "2788"
+  ],
+  "novel": [
+    "323",
+    "331",
+    "372",
+    "373",
+    "374",
+[etc...]
+
+
