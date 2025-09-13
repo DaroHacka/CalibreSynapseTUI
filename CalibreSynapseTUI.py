@@ -1,4 +1,6 @@
+  GNU nano 7.2                                                                                                                                                                                                                                                                                                                                                                                                                                                         CalibreSynapseTUI.py
 #!/usr/bin/env python3
+# v. 1.2
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import urwid
@@ -34,6 +36,9 @@ class CalibreUI:
         self.search_query = ""
         self.current_theme = "deepsea"
         self.feeds_enabled = True
+        self.label_page_size = 30
+        self.category_page_index = {}
+        self.last_active_category = None
 
         self.themes = {
             "deepsea": [('header', 'dark blue,bold', ''),
@@ -64,7 +69,7 @@ class CalibreUI:
 
         self.rotating_book_widget = urwid.Text("")
         self.footer = urwid.Text(
-            "🔍 Q: Quit | C: Clear | ↑↓: Navigate | Enter: Select | T: Toggle Feeds"
+            "🔍 Q: Quit | C: Clear | ↑↓: Navigate | -/+: Page | Enter: Select | T: Toggle Feeds"
             "🟦 Blue = Standalone Book | 🟩 Green = Series"
         )
 
@@ -107,114 +112,7 @@ class CalibreUI:
             self.loop.screen.clear()
             self.loop.screen.register_palette(self.themes[theme_name])
             self.loop.draw_screen()
-
-    def update_selected(self):
-        if self.selected_labels:
-            self.selected_text.set_text("🎯 Selected Labels: " + ", ".join(sorted(self.selected_labels)))
-        else:
-            self.selected_text.set_text("📖 Welcome to CalibreSynapse — where genre meets depth.")
-
-    def handle_input(self, key):
-        if key in ('q', 'Q'):
-            raise urwid.ExitMainLoop()
-        elif key in ('c', 'C'):
-            self.selected_labels.clear()
-            self.search_query = ""
-            self.search_edit.set_edit_text("")
-            self.update_selected()
-            self.update_titles()
-            self.build_label_list()
-        elif key in ('t', 'T'):
-            self.toggle_feeds(None)
-        elif key == 'enter':
-            query = self.search_edit.edit_text.strip()
-            self.perform_search(query)
-
-    def run(self):
-        self.loop.run()
-
-    def build_body(self):
-        left_column = urwid.LineBox(self.label_listbox, title="📂 Labels")
-
-        main_right = urwid.Columns([
-            ('weight', 2, urwid.Pile([
-                ('weight', 3, urwid.LineBox(self.title_listbox, title="📚 Titles")),
-                ('pack', urwid.Columns([
-                    ('weight', 3, self.logo_widget),
-                    ('pack', self.rotating_book_widget)
-                ]))
-            ])),
-            ('weight', 1, urwid.LineBox(self.suggestion_listbox, title="📰 Book Feeds"))
-        ])
-
-        return urwid.Columns([
-            ('weight', 1, left_column),
-            ('weight', 2, main_right)
-        ])
-    def book_frames(self):
-        frames = [
-            "📘", "📗", "📙", "📕", "📓", "📔", "📒", "📚"
-        ]
-        return itertools.cycle(frames)
-
-    def animate_book(self, loop, user_data):
-        self.rotating_book_widget.set_text(next(self.frame_gen))
-        loop.set_alarm_in(0.1, self.animate_book)
-
-    def on_search_keypress(self, edit, key):
-        if key == 'enter':
-            query = edit.edit_text.strip()
-            self.perform_search(query)
-
-    def perform_search(self, query):
-        self.search_query = query
-        if not self.engine:
-            self.label_listbox.body[:] = [urwid.Text("❌ Engine not initialized.")]
-            return
-
-        results = []
-        label_to_category = self.engine.label_to_category
-
-        for field in self.engine.dynamic_vocab:
-            for label in self.engine.dynamic_vocab[field]:
-                if query.lower() in label.lower():
-                    category = label_to_category.get(label.lower(), "Unknown")
-                    label_text = f"• {label} ({category})"
-                    btn = urwid.Button(label_text)
-                    urwid.connect_signal(btn, 'click', self.select_from_search, user_arg=label.lower())
-                    results.append(urwid.AttrMap(btn, 'raw', focus_map='reversed'))
-
-        if results:
-            self.label_listbox.body[:] = [urwid.Text(f"🔍 Results for '{query}':")] + results
-        else:
-            self.label_listbox.body[:] = [urwid.Text(f"❌ No matches for '{query}'")]
-
-    def select_from_search(self, button, label):
-        self.search_query = ""
-        self.search_edit.set_edit_text("")
-        self.selected_labels.add(label)
-        self.update_selected()
-        self.update_titles()
-        self.build_label_list()
-
-    def toggle_label_direct(self, label):
-        key = label.lower()
-        if not self.engine:
-            return
-
-        all_labels = set()
-        for field in self.engine.dynamic_vocab:
-            all_labels.update([lbl.lower() for lbl in self.engine.dynamic_vocab[field]])
-        if key in all_labels:
-            if key in self.selected_labels:
-                self.selected_labels.remove(key)
-            else:
-                self.selected_labels.add(key)
-            self.update_selected()
-            self.update_titles()
-            self.build_label_list()
-
-    def build_label_list(self):
+    def build_label_list(self, restore_focus_position=None):
         walker = self.label_listbox.body
         walker.clear()
 
@@ -238,6 +136,8 @@ class CalibreUI:
             if not is_expanded:
                 continue
 
+            self.last_active_category = field
+
             labels_info = self.engine.get_labels_for_field(field)
             raw = labels_info.get("raw", [])
 
@@ -250,6 +150,9 @@ class CalibreUI:
                 else:
                     split_labels.append(label.strip())
 
+            filtered_labels = []
+            label_counts = {lbl.lower(): count for lbl, count in refinement.get(field, [])}
+
             for label in sorted(split_labels):
                 key = label.lower()
                 is_selected = key in self.selected_labels
@@ -258,27 +161,72 @@ class CalibreUI:
                     continue
 
                 if self.selected_labels and not is_selected:
-                    if field not in refinement:
-                        continue
-                    refinable_keys = {lbl.lower() for lbl, _ in refinement[field]}
-                    if key not in refinable_keys:
+                    if field not in refinement or key not in label_counts:
                         continue
 
-                count = ""
-                for ref_label, ref_count in refinement.get(field, []):
-                    if ref_label.lower() == key:
-                        count = f" ({ref_count})"
-                        break
+                filtered_labels.append(label)
 
-                label_text = f"  • {label}{count}"
+            pages = list(self.paginate_labels(filtered_labels, self.label_page_size))
+            page_index = self.category_page_index.get(field, 0)
+            page_index = min(page_index, len(pages) - 1)
+            self.category_page_index[field] = page_index
+            current_page = pages[page_index]
+
+            for label in current_page:
+                key = label.lower()
+                is_selected = key in self.selected_labels
+                count = label_counts.get(key, "")
+                count_str = f" ({count})" if count else ""
+                label_text = f"  • {label}{count_str}"
                 btn = urwid.Button(label_text)
+                btn._category = field  # Attach category for focus tracking
                 urwid.connect_signal(btn, 'click', self.toggle_label, user_arg=key)
                 style = 'selected' if is_selected else 'raw'
                 walker.append(urwid.AttrMap(btn, style, focus_map='reversed'))
 
+            nav_buttons = []
+            if page_index > 0:
+                nav_buttons.append(urwid.Button("← Prev", on_press=self.prev_category_page, user_data=field))
+            if page_index < len(pages) - 1:
+                nav_buttons.append(urwid.Button("Next →", on_press=self.next_category_page, user_data=field))
+
+            page_info = urwid.Text(f"📄 Page {page_index + 1} of {len(pages)}")
+            walker.append(urwid.Columns(nav_buttons + [page_info]))
+            walker.append(urwid.Divider())
+
+        if restore_focus_position is not None:
+            try:
+                self.label_listbox.set_focus(restore_focus_position)
+            except IndexError:
+                pass
+
+    def get_focused_category(self):
+        focus_widget, _ = self.label_listbox.get_focus()
+        base = focus_widget.base_widget
+        if hasattr(base, '_category'):
+            return base._category
+        if isinstance(base, urwid.Button):
+            label = base.get_label()
+            match = re.match(r"[▶▼] (.+)", label)
+            if match:
+                return match.group(1)
+        return self.last_active_category
+
     def toggle_category(self, button, field):
         self.expanded_categories[field] = not self.expanded_categories.get(field, False)
+        if self.expanded_categories[field]:
+            self.last_active_category = field
         self.build_label_list()
+
+    def next_category_page(self, button=None, field=None):
+        field = field or self.last_active_category
+        if field:
+            self.category_page_index[field] = self.category_page_index.get(field, 0) + 1
+
+    def prev_category_page(self, button=None, field=None):
+        field = field or self.last_active_category
+        if field:
+            self.category_page_index[field] = max(0, self.category_page_index.get(field, 0) - 1)
 
     def toggle_label(self, button, label):
         if label in self.selected_labels:
@@ -289,16 +237,59 @@ class CalibreUI:
         self.update_titles()
         self.build_label_list()
 
+    def select_from_search(self, button, label):
+        self.search_query = ""
+        self.search_edit.set_edit_text("")
+        self.selected_labels.add(label)
+        self.update_selected()
+        self.update_titles()
+        self.build_label_list()
+
+    def perform_search(self, query):
+        self.search_query = query
+        if not self.engine:
+            self.label_listbox.body[:] = [urwid.Text("❌ Engine not initialized.")]
+            return
+
+        result = self.engine.query(list(self.selected_labels))
+        refinable = result.get("refinable_labels", {})
+        label_to_category = self.engine.label_to_category
+
+        compatible_labels = []
+        for category, label_list in refinable.items():
+            for label, _ in label_list:
+                compatible_labels.append((label, category))
+
+        matches = [(label, category) for label, category in compatible_labels if query.lower() in label.lower()]
+
+        if matches:
+            self.label_listbox.body[:] = [urwid.Text(f"🔍 Results for '{query}':")]
+            for label, category in matches:
+                label_text = f"• {label} ({category})"
+                btn = urwid.Button(label_text)
+                urwid.connect_signal(btn, 'click', self.select_from_search, user_arg=label.lower())
+                self.label_listbox.body.append(urwid.AttrMap(btn, 'raw', focus_map='reversed'))
+        else:
+            self.label_listbox.body[:] = [urwid.Text("🔍 No direct match, but here are compatible labels:")]
+            for label, category in compatible_labels:
+                label_text = f"• {label} ({category})"
+                btn = urwid.Button(label_text)
+                urwid.connect_signal(btn, 'click', self.select_from_search, user_arg=label.lower())
+                self.label_listbox.body.append(urwid.AttrMap(btn, 'raw', focus_map='reversed'))
+
+    def paginate_labels(self, labels, page_size):
+        for i in range(0, len(labels), page_size):
+            yield labels[i:i + page_size]
+
+    def paginate(self, entries, page_size):
+        for i in range(0, len(entries), page_size):
+            yield entries[i:i + page_size]
     def update_titles(self):
         walker = self.title_listbox.body
         walker.clear()
 
-        if not self.selected_labels:
+        if not self.selected_labels or not self.engine:
             walker.append(urwid.Text("📘 Select a label to view matching titles."))
-            return
-
-        if not self.engine:
-            walker.append(urwid.Text("❌ Engine not initialized."))
             return
 
         result = self.engine.query(list(self.selected_labels))
@@ -366,6 +357,68 @@ class CalibreUI:
                 items.append(urwid.Text(summary.strip(), wrap='any'))
                 items.append(urwid.Text(link, wrap='any'))
         return items
+
+    def build_body(self):
+        left_column = urwid.LineBox(self.label_listbox, title="📂 Labels")
+
+        main_right = urwid.Columns([
+            ('weight', 2, urwid.Pile([
+                ('weight', 3, urwid.LineBox(self.title_listbox, title="📚 Titles")),
+                ('pack', urwid.Columns([
+                    ('weight', 3, self.logo_widget),
+                    ('pack', self.rotating_book_widget)
+                ]))
+            ])),
+            ('weight', 1, urwid.LineBox(self.suggestion_listbox, title="📰 Book Feeds"))
+        ])
+
+        return urwid.Columns([
+            ('weight', 1, left_column),
+            ('weight', 2, main_right)
+        ])
+
+    def book_frames(self):
+        frames = ["📘", "📗", "📙", "📕", "📓", "📔", "📒", "📚"]
+        return itertools.cycle(frames)
+
+    def animate_book(self, loop, user_data):
+        self.rotating_book_widget.set_text(next(self.frame_gen))
+        loop.set_alarm_in(0.1, self.animate_book)
+
+    def handle_input(self, key):
+        if key in ('q', 'Q'):
+            raise urwid.ExitMainLoop()
+        elif key in ('c', 'C'):
+            self.selected_labels.clear()
+            self.search_query = ""
+            self.search_edit.set_edit_text("")
+            self.update_selected()
+            self.update_titles()
+            self.build_label_list()
+        elif key in ('t', 'T'):
+            self.toggle_feeds(None)
+        elif key == 'enter':
+            query = self.search_edit.edit_text.strip()
+            self.perform_search(query)
+        elif key in ('-', '+'):
+            field = self.get_focused_category()
+            if field:
+                focus_widget, focus_position = self.label_listbox.get_focus()
+                if key == '+':
+                    self.next_category_page(field=field)
+                elif key == '-':
+                    self.prev_category_page(field=field)
+                self.build_label_list(restore_focus_position=focus_position)
+
+    def update_selected(self):
+        if self.selected_labels:
+            self.selected_text.set_text("🎯 Selected Labels: " + ", ".join(sorted(self.selected_labels)))
+        else:
+            self.selected_text.set_text("📖 Welcome to CalibreSynapse — where genre meets depth.")
+
+    def run(self):
+        self.loop.run()
+
 # Entry point
 if __name__ == "__main__":
     print("🚀 Launching CalibreSynapse Urwid TUI with Enhanced Panels...")
@@ -374,3 +427,8 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error("Unhandled exception", exc_info=True)
         print(f"❌ Application crashed: {e}")
+
+
+
+
+
