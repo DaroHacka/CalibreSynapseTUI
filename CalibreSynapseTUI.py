@@ -1,4 +1,3 @@
-  GNU nano 7.2                                                                                                                                                                                                                                                                                                                                                                                                                                                         CalibreSynapseTUI.py
 #!/usr/bin/env python3
 # v. 1.2
 import warnings
@@ -167,10 +166,16 @@ class CalibreUI:
                 filtered_labels.append(label)
 
             pages = list(self.paginate_labels(filtered_labels, self.label_page_size))
+
+            if not pages:
+                walker.append(urwid.Text("⚠️ No labels to display in this category."))
+                continue  # Skip to next category
+
             page_index = self.category_page_index.get(field, 0)
             page_index = min(page_index, len(pages) - 1)
             self.category_page_index[field] = page_index
             current_page = pages[page_index]
+
 
             for label in current_page:
                 key = label.lower()
@@ -315,9 +320,6 @@ class CalibreUI:
                 title = book_id.split(":")[-1].strip()
                 title = re.sub(r'\(\d+\)$', '', title).strip()
 
-            if count >= 50:
-                break
-
             if title and raw_series:
                 walker.append(urwid.Text(("title", f"📗 {title} (Series: {raw_series}) — Author: {author}")))
             elif title:
@@ -398,8 +400,30 @@ class CalibreUI:
         elif key in ('t', 'T'):
             self.toggle_feeds(None)
         elif key == 'enter':
-            query = self.search_edit.edit_text.strip()
-            self.perform_search(query)
+            focus_widget, focus_position = self.label_listbox.get_focus()
+            base = focus_widget.base_widget
+
+        elif key == 'enter':
+            focus_widget, focus_position = self.label_listbox.get_focus()
+            base = focus_widget.base_widget
+
+            # If it's a category header
+            if isinstance(base, urwid.Button):
+                label = base.get_label()
+                match = re.match(r"[▶▼] (.+)", label)
+            if match:
+                field = match.group(1)
+                self.toggle_category(None, field)
+                self.build_label_list(restore_focus_position=focus_position)
+                return
+
+            # If it's a label
+            if hasattr(base, '_category'):
+                label_text = base.get_label()
+                label_clean = label_text.strip().lstrip("•").split("(", 1)[0].strip().lower()
+                self.toggle_label(None, label_clean)
+                self.build_label_list(restore_focus_position=focus_position)
+
         elif key in ('-', '+'):
             field = self.get_focused_category()
             if field:
@@ -427,8 +451,4 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error("Unhandled exception", exc_info=True)
         print(f"❌ Application crashed: {e}")
-
-
-
-
 
