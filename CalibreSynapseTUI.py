@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# v. 1.2
+# v. 1.2.2
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import urwid
@@ -191,9 +191,12 @@ class CalibreUI:
 
             nav_buttons = []
             if page_index > 0:
-                nav_buttons.append(urwid.Button("← Prev", on_press=self.prev_category_page, user_data=field))
+                prev_btn = urwid.Button("← Prev", on_press=self.prev_category_page, user_data=field)
+                nav_buttons.append(urwid.AttrMap(prev_btn, 'header', focus_map='reversed'))
+
             if page_index < len(pages) - 1:
-                nav_buttons.append(urwid.Button("Next →", on_press=self.next_category_page, user_data=field))
+                next_btn = urwid.Button("Next →", on_press=self.next_category_page, user_data=field)
+                nav_buttons.append(urwid.AttrMap(next_btn, 'header', focus_map='reversed'))
 
             page_info = urwid.Text(f"📄 Page {page_index + 1} of {len(pages)}")
             walker.append(urwid.Columns(nav_buttons + [page_info]))
@@ -227,11 +230,15 @@ class CalibreUI:
         field = field or self.last_active_category
         if field:
             self.category_page_index[field] = self.category_page_index.get(field, 0) + 1
+            focus_widget, focus_position = self.label_listbox.get_focus()
+            self.build_label_list(restore_focus_position=focus_position)
 
     def prev_category_page(self, button=None, field=None):
         field = field or self.last_active_category
         if field:
             self.category_page_index[field] = max(0, self.category_page_index.get(field, 0) - 1)
+            focus_widget, focus_position = self.label_listbox.get_focus()
+            self.build_label_list(restore_focus_position=focus_position)
 
     def toggle_label(self, button, label):
         if label in self.selected_labels:
