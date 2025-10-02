@@ -2,7 +2,7 @@ label_disambiguator.py — Why You’ll Eventually Need It
 
 At first, you won’t. When you’re starting out with just a few dozen labels across Calibre columns, everything feels clean. But once you hit 300, 500, or more AI-generated labels, things start to break, well not necessarily.
 
-The premise is simple: over time, AI tends to generate **similar labels across different categories**. And AI might generate the label “episodic” for multiple categories—say, writing style, setting, and emotional tone. While Calibre itself can distinguish between these when labels are properly scoped (e.g., “urban” in setting vs provenance vs subject), the way CalibreSynapseTUI retrieves and displays metadata can sometimes blur those boundaries. So when filtering by “episodic” in writing style, you might unintentionally include books where “episodic” was meant as a setting or tone—or worse, the label might vanish entirely due to internal conflicts. That’s precisely the kind of ambiguity the label disambiguator was designed to resolve.
+The premise is simple: over time, AI tends to generate **similar labels across different categories**. And AI might generate the label “episodic” for multiple categories, say, writing style, setting, and emotional tone. While Calibre itself can distinguish between these when labels are properly scoped (e.g., “urban” in setting vs provenance vs subject), the way CalibreSynapseTUI retrieves and displays metadata can sometimes blur those boundaries. So when filtering by “episodic” in writing style, you might unintentionally include books where “episodic” was meant as a setting or tone, or worse, the label might vanish entirely due to internal conflicts. That’s precisely the kind of ambiguity the label disambiguator was designed to resolve.
 
 
 ---
@@ -15,7 +15,7 @@ Let’s say you have these categories (Calibre columns):
 - `writing_style`
 - `book_setting`
 
-And AI generates the label `"episodic"` for all three. Calibre treats them as one global label. So when you filter by `"episodic"` in `writing_style`, you might accidentally include books where `"episodic"` was meant as a **setting** or **tone** — or worse, the label disappears entirely due to conflict.
+And AI generates the label `"episodic"` for all three. CalibreSynapseTUI tends to treat them as one global label. So when you filter by `"episodic"` in `writing_style`, you might accidentally include books where `"episodic"` was meant as a **setting** or **tone** or worse, the label disappears entirely due to conflict.
 
 This happens with tons of expressive labels:
 
