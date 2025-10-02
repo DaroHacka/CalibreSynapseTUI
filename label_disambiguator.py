@@ -4,7 +4,7 @@ import re
 import os
 
 # === CONFIG ===
-library_path = "/srv/dev-disk-by-uuid-2856cdb9-5991-47dc-886b-1be20f8c2993/ArkVault/Calibre Library"
+library_path = "/srv/dev-disk-by-uuid-2856cdf9-5341-47dc-883b-1be20f8c2993/VaultUncleScrooge/Calibre Library" # Add here path to your own Calibre Library
 vocab_path = "dynamic_vocabulary.json"
 semantic_map_path = "semantic_label_map.json"
 resolved_path = "resolved_labels.json"
