@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # v. 1.5
 import warnings
-#warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 import urwid
 import json
 import pyfiglet
@@ -11,6 +11,12 @@ import logging
 import re
 from CalibreEngine import CalibreEngine
 from ComboUsageTracker import ComboUsageTracker
+
+def extract_first_link(html):
+    match = re.search(r'href="([^"]+)"', html)
+    if match:
+        return match.group(1)
+    return None
 
 logging.basicConfig(
     filename='calibre_ui.log',
@@ -74,7 +80,7 @@ class CalibreUI:
 
         self.rotating_book_widget = urwid.Text("")
         footer_text_widget = urwid.Text(
-            "🔍 Q: Quit | C: Clear | U: Undo | ↑↓: Navigate | -/+: Page | Enter: Select | T: Toggle Feeds"
+            "🔍 Q: Quit | C: Clear | U: Undo | Esc, P: Close RSS Pop-up | ↑↓: Navigate | -/+: Page | Enter: Select | T: Toggle Feeds"
             "🟦 Blue = Standalone Book | 🟩 Green = Series"
         )
 
@@ -109,7 +115,7 @@ class CalibreUI:
         )
 
         print("✅ Reached loop setup")
-        self.loop = urwid.MainLoop(self.layout, palette=self.themes[self.current_theme], unhandled_input=self.handle_input)
+        self.loop = urwid.MainLoop(self.layout, palette=self.themes[self.current_theme], unhandled_input=self.handle_input, handle_mouse=True)
         self.build_theme_bar()
         self.frame_gen = self.book_frames()
         self.loop.set_alarm_in(0.1, self.animate_book)
@@ -509,6 +515,26 @@ class CalibreUI:
             self.suggestion_listbox.body[:] = [urwid.Text("📚 Suggestions are currently disabled.")]
         self.loop.draw_screen()
 
+    def open_link(self, button, link):
+    # Display the link in a popup dialog
+        link_message = urwid.LineBox(
+            urwid.Text(f"🔗 Link:\n{link}\n\nSelect and copy with your mouse/terminal.")
+        )
+        overlay = urwid.Overlay(
+            link_message, self.layout,
+            align='center', width=('relative', 90),
+            valign='middle', height=('relative', 30)
+        )
+        self.loop.widget = overlay
+        # Press any key to dismiss
+        def dismiss(key):
+            if key in ('esc', 'p'):
+                self.loop.widget = self.layout
+                self.loop.unhandled_input = self.handle_input
+
+        self.loop.screen.register_palette(self.themes[self.current_theme])  # Refresh colors
+        self.loop.unhandled_input = dismiss
+
     def fetch_rss_suggestions(self, urls, max_items=2):
         items = []
         for url in urls:
@@ -517,10 +543,33 @@ class CalibreUI:
                 title = entry.title
                 summary = entry.get("summary", "")
                 link = entry.get("link", "")
+                extracted_link = extract_first_link(summary)
+                if extracted_link:
+                    link_to_use = extracted_link
+                elif link:
+                    link_to_use = link
+                else:
+                    link_to_use = None
                 items.append(urwid.Text(f"• {title}", wrap='any'))
-                items.append(urwid.Text(summary.strip(), wrap='any'))
-                items.append(urwid.Text(link, wrap='any'))
+                items.append(urwid.Text(re.sub('<.*?>', '', summary.strip()), wrap='any'))
+                if link_to_use:
+                    link_btn = urwid.Button(link_to_use)
+                    urwid.connect_signal(link_btn, 'click', self.open_link, user_arg=link_to_use)
+                    items.append(urwid.AttrMap(link_btn, 'selected', focus_map='reversed'))
+                else:
+                    items.append(urwid.Text("No link found.", wrap='any'))
         return items
+
+    def open_link(self, button, link):
+        link_message = urwid.LineBox(urwid.Text(f"🔗 Link:\n{link}\n\nSelect and copy with your mouse/terminal.", wrap='clip'))
+        overlay = urwid.Overlay(link_message, self.layout,
+                            align='center', width=('relative', 60),
+                            valign='middle', height=('relative', 30))
+        self.loop.widget = overlay
+        def dismiss(key):
+            self.loop.widget = self.layout
+            self.loop.unhandled_input = self.handle_input  # Restore default handler!
+        self.loop.unhandled_input = dismiss
 
     def run(self):
         self.loop.run()
