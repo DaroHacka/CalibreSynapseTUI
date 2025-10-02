@@ -194,7 +194,7 @@ This will generate:
 python CalibreSynapseTUI.py
 ```
 <p align="center">
-  <img src="https://github.com/DaroHacka/CalibreSynapseTUI/blob/main/CalibreSynapseTUI%20dashboard%20and%20labels.png?raw=true" alt="CalibreSynapseTUI Dashboard labels">
+  <img src="https://raw.githubusercontent.com/DaroHacka/CalibreSynapseTUI/refs/heads/main/Screenshot%202025-10-03%20005521.png" alt="CalibreSynapseTUI Dashboard">
 </p>
 
 
