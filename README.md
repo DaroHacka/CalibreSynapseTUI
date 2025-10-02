@@ -80,8 +80,9 @@ In my case, it mirrors the books I actually own, but I guess it could also be us
 ---
 
 <p align="center">
-  <img src="https://github.com/DaroHacka/CalibreSynapseTUI/blob/main/CalibreSynapseTUI%20dashboard.png?raw=true" alt="CalibreSynapseTUI Dashboard">
+  <img src="https://raw.githubusercontent.com/DaroHacka/CalibreSynapseTUI/refs/heads/main/Screenshot%202025-10-03%20005004.png" alt="CalibreSynapseTUI Dashboard - Updated View">
 </p>
+
 
 ## 🖥️ TUI-Specific Enhancements
 
