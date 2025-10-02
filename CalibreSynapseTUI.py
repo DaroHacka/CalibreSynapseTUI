@@ -52,16 +52,22 @@ class CalibreUI:
         self.last_active_category = None
 
         self.themes = {
-            "deepsea": [('header', 'dark blue,bold', ''),
-                        ('selected', 'light cyan,bold', ''),
-                        ('raw', 'dark gray', ''),
-                        ('title', 'light blue', ''),
-                        ('series', 'white', '')],
-            "sunset": [('header', 'dark red,bold', ''),
-                       ('selected', 'yellow,bold', ''),
-                       ('raw', 'light gray', ''),
-                       ('title', 'light magenta', ''),
-                       ('series', 'light green', '')]
+            "deepsea": [
+                ('header', 'dark blue,bold', ''),
+                ('selected', 'light cyan,bold', ''),
+                ('raw', 'dark gray', ''),
+                ('title', 'light blue', ''),
+                ('series', 'white', ''),
+                ('logo', 'light magenta,bold', '')
+            ],
+            "sunset": [
+                ('header', 'dark red,bold', ''),
+                ('selected', 'yellow,bold', ''),
+                ('raw', 'light gray', ''),
+                ('title', 'light magenta', ''),
+                ('series', 'light green', ''),
+                ('logo', 'light red,bold', '')
+            ]
         }
 
         self.selected_text = urwid.Text("📖 Welcome to CalibreSynapse — where genre meets depth.")
@@ -72,9 +78,15 @@ class CalibreUI:
             urwid.Text("📚 Loading suggestions...")
         ]))
 
-        logo_text = pyfiglet.figlet_format("CalibreSynapse")
+        logo_text = """
+┏━╸┏━┓╻  ╻┏┓ ┏━┓┏━╸┏━┓╻ ╻┏┓╻┏━┓┏━┓┏━┓┏━╸
+┃  ┣━┫┃  ┃┣┻┓┣┳┛┣╸ ┗━┓┗┳┛┃┗┫┣━┫┣━┛┗━┓┣╸ 
+┗━╸╹ ╹┗━╸╹┗━┛╹┗╸┗━╸┗━┛ ╹ ╹ ╹╹ ╹╹  ┗━┛┗━╸
+"""
+        logo_widget_raw = urwid.Text(logo_text, wrap='clip')
+        logo_widget_colored = urwid.AttrMap(logo_widget_raw, 'logo')
         self.logo_widget = urwid.Filler(
-            urwid.Padding(urwid.Text(logo_text, wrap='clip'), left=2, right=2),
+            urwid.Padding(logo_widget_colored, left=2, right=2),
             valign='top'
         )
 
@@ -132,6 +144,9 @@ class CalibreUI:
             self.update_selected()
             self.update_titles()
 
+    def strip_suffix(self, label):
+        return re.sub(r"-(et|ws|bs|sg|g|p|t|s|pv|pc|rl|rm|pp|a|ct|ns|mv|mg|l)$", "", label)
+
     def switch_theme(self, button, theme_name):
         if theme_name in self.themes:
             self.current_theme = theme_name
@@ -170,7 +185,20 @@ class CalibreUI:
         if cache_key in self._filtered_label_cache:
             return self._filtered_label_cache[cache_key]
 
-        label_counts = {lbl.lower(): count for lbl, count in refinement.get(field, [])}
+        result = self.usage_tracker.get(combo_key)
+        if not result:
+            result = self.engine.query(list(self.selected_labels))
+            self.usage_tracker.store(combo_key, result)
+
+        books = result.get("books", {})
+        label_set = set()
+
+        for book_id in books:
+            book_info = self.engine.label_map.get(book_id, {})
+            labels_by_field = book_info.get("labels_by_field", {})
+            for lbl in labels_by_field.get(field, []):
+                label_set.add(lbl.strip().lower())
+
         filtered = []
         for label in sorted(split_labels):
             key = label.lower()
@@ -179,7 +207,7 @@ class CalibreUI:
                 continue
             if self.search_query and self.search_query not in key:
                 continue
-            if self.selected_labels and key not in label_counts:
+            if self.selected_labels and key not in label_set:
                 continue
             filtered.append(label)
 
@@ -236,7 +264,7 @@ class CalibreUI:
                 is_selected = key in self.selected_labels
                 count = label_counts.get(key, "")
                 count_str = f" ({count})" if count else ""
-                label_text = f"  • {label}{count_str}"
+                label_text = f"  • {self.strip_suffix(label)}{count_str}"
                 btn = urwid.Button(label_text)
                 btn._category = field
                 urwid.connect_signal(btn, 'click', self.toggle_label, user_arg=key)
