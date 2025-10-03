@@ -80,20 +80,20 @@ This strips suffixes from the UI display, so `"episodic-ws"` shows as `"episodic
 | `bs`   | book_setting                      |
 | `sg`   | subgenre                          |
 | `g`    | genre                             |
-| `p`    | pacing                            |
+| `p`    | provenance                        |
 | `t`    | theme                             |
-| `s`    | structure                         |
-| `pv`   | plot_vector                       |
-| `pc`   | protagonist_character             |
-| `rl`   | relationship_layer                |
-| `rm`   | romantic_mood                     |
+| `s`    | subject                           |
+| `pv`   | perspective                       |
+| `pc`   | pacing                            |
+| `rl`   | reading level                     |
+| `rm`   | reading  mood                     |
 | `pp`   | publication_period                |
-| `a`    | audience                          |
-| `ct`   | cultural_tone                     |
-| `ns`   | narrative_scope                   |
-| `mv`   | moral_vector                      |
-| `mg`   | mythological_grade                |
-| `l`    | language                          |
+| `a`    | awards                            |
+| `ct`   | character traits                  |
+| `ns`   | narrative structure               |
+| `mv`   | movement                          |
+| `mg`   | manga grade                       |
+| `l`    | lenght                            |
 
 You can use whatever suffixes you want — these are just mine and mirrors the columns I created in my Calibre Library. The key is consistency.
 
