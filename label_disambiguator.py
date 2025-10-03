@@ -57,7 +57,7 @@ def trace_books():
         json.dump(affected, f, indent=2, ensure_ascii=False)
     print(f"📚 Traced {len(affected)} affected books.")
 
-# === STEP 3: Resolve conflicts ===
+# === STEP 3: Resolve conflicts (patched to preserve unique labels) ===
 def resolve_conflicts():
     suffix_map = {
         "#genres": "-g", "#subgenre": "-sg", "#provenance": "-p",
@@ -77,26 +77,39 @@ def resolve_conflicts():
 
     with open(affected_path, "r", encoding="utf-8") as f:
         affected = json.load(f)
+    with open(semantic_map_path, "r", encoding="utf-8") as f:
+        all_books = json.load(f)
+    with open(overlap_path, "r", encoding="utf-8") as f:
+        overlapping = json.load(f)
 
     resolved = {}
     for book_id, info in affected.items():
         title = info.get("title", "Unknown Title")
         author = info.get("author", "Unknown Author")
         updates = {}
-        for field, labels in info["conflicting_labels"].items():
+        original_fields = all_books.get(book_id, {}).get("labels_by_field", {})
+
+        for field, labels in original_fields.items():
             norm_field = normalize_field(field)
             if norm_field not in suffix_map:
                 continue
             suffix = suffix_map[norm_field]
             if suffix == "":
                 continue
-            updated_labels = [f"{label}{suffix}" for label in labels]
+
+            updated_labels = []
+            for label in labels:
+                if label in overlapping:
+                    updated_labels.append(f"{label}{suffix}")
+                else:
+                    updated_labels.append(label)
             updates[norm_field] = updated_labels
+
         resolved[book_id] = {"title": title, "author": author, "updates": updates}
 
     with open(resolved_path, "w", encoding="utf-8") as f:
         json.dump(resolved, f, indent=2, ensure_ascii=False)
-    print(f"🧩 Resolved {len(resolved)} books.")
+    print(f"🧩 Resolved {len(resolved)} books with full label preservation.")
 
 # === STEP 4: Push metadata for all books ===
 def push_metadata():
