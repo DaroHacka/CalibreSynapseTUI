@@ -12,6 +12,19 @@ import re
 from CalibreEngine import CalibreEngine
 from ComboUsageTracker import ComboUsageTracker
 
+class SearchEdit(urwid.Edit):
+    def __init__(self, callback, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._callback = callback
+
+    def keypress(self, size, key):
+        if key == 'enter':
+            query = self.get_edit_text().strip()
+            if query:
+                self._callback(query)
+            return None  # Don't pass Enter to parent
+        return super().keypress(size, key)
+
 def extract_first_link(html):
     match = re.search(r'href="([^"]+)"', html)
     if match:
@@ -36,6 +49,7 @@ class CalibreUI:
             print(f"❌ Engine failed: {e}")
             self.engine = None
 
+        self.in_search_mode = False
         self.usage_tracker = ComboUsageTracker()
         self._split_cache = {}
         self._page_cache = {}
@@ -71,7 +85,7 @@ class CalibreUI:
         }
 
         self.selected_text = urwid.Text("📖 Welcome to CalibreSynapse — where genre meets depth.")
-        self.search_edit = urwid.Edit("🔎 Search Label: ")
+        self.search_edit = SearchEdit(self.perform_search, "🔎 Search Label: ")
         self.label_listbox = urwid.ListBox(urwid.SimpleFocusListWalker([]))
         self.title_listbox = urwid.ListBox(urwid.SimpleFocusListWalker([]))
         self.suggestion_listbox = urwid.ListBox(urwid.SimpleFocusListWalker([
@@ -79,16 +93,22 @@ class CalibreUI:
         ]))
 
         logo_text = """
-┏━╸┏━┓╻  ╻┏┓ ┏━┓┏━╸┏━┓╻ ╻┏┓╻┏━┓┏━┓┏━┓┏━╸
-┃  ┣━┫┃  ┃┣┻┓┣┳┛┣╸ ┗━┓┗┳┛┃┗┫┣━┫┣━┛┗━┓┣╸ 
-┗━╸╹ ╹┗━╸╹┗━┛╹┗╸┗━╸┗━┛ ╹ ╹ ╹╹ ╹╹  ┗━┛┗━╸
-"""
+    ┏━╸┏━┓╻  ╻┏┓ ┏━┓┏━╸┏━┓╻ ╻┏┓╻┏━┓┏━┓┏━┓┏━╸
+    ┃  ┣━┫┃  ┃┣┻┓┣┳┛┣╸ ┗━┓┗┳┛┃┗┫┣━┫┣━┛┗━┓┣╸ 
+    ┗━╸╹ ╹┗━╸╹┗━┛╹┗╸┗━╸┗━┛ ╹ ╹ ╹╹ ╹╹  ┗━┛┗━╸
+    """
         logo_widget_raw = urwid.Text(logo_text, wrap='clip')
         logo_widget_colored = urwid.AttrMap(logo_widget_raw, 'logo')
-        self.logo_widget = urwid.Filler(
-            urwid.Padding(logo_widget_colored, left=2, right=2),
-            valign='top'
+        self.logo_widget = urwid.Padding(
+            urwid.Filler(logo_widget_colored, valign='top'),
+            left=2, right=2,
+            width=('relative', 60)  # or use 'fixed', e.g. width=50
+
         )
+        #self.logo_widget = urwid.Filler(
+        #    urwid.Padding(logo_widget_colored, left=2, right=2),
+        #    valign='top'
+        #)
 
         self.rotating_book_widget = urwid.Text("")
         footer_text_widget = urwid.Text(
@@ -103,7 +123,6 @@ class CalibreUI:
             ('weight', 5, footer_text_widget),
             ('pack', undo_btn_map)
         ])
-
 
         self.toggle_btn = urwid.Button("🛑 Toggle Feeds", on_press=self.toggle_feeds)
         toggle_row = urwid.Columns([
@@ -214,6 +233,10 @@ class CalibreUI:
         self._filtered_label_cache[cache_key] = filtered
         return filtered
     def build_label_list(self, restore_focus_position=None, refinement=None):
+        """Normal category/label list, unless in search mode."""
+        if self.in_search_mode:
+            # Don't build the normal list if in search mode
+            return
         self._split_cache.clear()
         walker = self.label_listbox.body
         walker.clear()
@@ -352,42 +375,40 @@ class CalibreUI:
         self.update_titles()
 
     def select_from_search(self, button, label):
+        """When user selects a label from search, add it and restore normal UI."""
         self.search_query = ""
         self.search_edit.set_edit_text("")
         self.selected_labels.add(label)
+        self.in_search_mode = False  # <--- Restore normal list
         self.update_selected()
         self.update_titles()
+        self.build_label_list()
 
     def perform_search(self, query):
+        """Show search results for labels matching query, from all categories."""
+        self.in_search_mode = True
         self.search_query = query
         if not self.engine:
             self.label_listbox.body[:] = [urwid.Text("❌ Engine not initialized.")]
             return
 
-        result = self.engine.query(list(self.selected_labels))
-        refinable = result.get("refinable_labels", {})
-        compatible_labels = [
-            (label, category)
-            for category, label_list in refinable.items()
-            for label, _ in label_list
-        ]
+        all_fields = sorted(self.engine.dynamic_vocab.keys())
+        all_label_results = []
+        for field in all_fields:
+            raw_labels = self.engine.get_labels_for_field(field).get("raw", [])
+            for label in raw_labels:
+                if query.lower() in label.lower():
+                    all_label_results.append((label, field))
 
-        matches = [(label, category) for label, category in compatible_labels if query.lower() in label.lower()]
-
-        if matches:
+        if all_label_results:
             self.label_listbox.body[:] = [urwid.Text(f"🔍 Results for '{query}':")]
-            for label, category in matches:
-                label_text = f"• {label} ({category})"
+            for label, field in all_label_results:
+                label_text = f"• {label} ({field})"
                 btn = urwid.Button(label_text)
                 urwid.connect_signal(btn, 'click', self.select_from_search, user_arg=label.lower())
                 self.label_listbox.body.append(urwid.AttrMap(btn, 'raw', focus_map='reversed'))
         else:
-            self.label_listbox.body[:] = [urwid.Text("🔍 No direct match, but here are compatible labels:")]
-            for label, category in compatible_labels:
-                label_text = f"• {label} ({category})"
-                btn = urwid.Button(label_text)
-                urwid.connect_signal(btn, 'click', self.select_from_search, user_arg=label.lower())
-                self.label_listbox.body.append(urwid.AttrMap(btn, 'raw', focus_map='reversed'))
+            self.label_listbox.body[:] = [urwid.Text(f"🔍 No results for '{query}'.")]
 
     def paginate_labels(self, labels, page_size):
         for i in range(0, len(labels), page_size):
@@ -454,16 +475,26 @@ class CalibreUI:
         main_right = urwid.Columns([
             ('weight', 2, urwid.Pile([
                 ('weight', 3, urwid.LineBox(self.title_listbox, title="📚 Titles")),
-                ('pack', urwid.Columns([
-                    ('weight', 3, self.logo_widget),
-                    ('pack', self.rotating_book_widget)
-                ]))
+                ('pack', urwid.Padding(self.logo_widget, left=2, right=2)),
+                ('pack', urwid.BoxAdapter(
+                    urwid.Filler(
+                        urwid.Columns([
+                            ('weight', 1, urwid.Text("")),
+                            ('pack', self.rotating_book_widget),
+                            ('weight', 1, urwid.Text(""))
+                        ]),
+                        valign='top'
+                    ),
+                    height=1
+                ))
             ])),
+
             ('weight', 1, urwid.LineBox(self.suggestion_listbox, title="📰 Book Feeds"))
         ])
 
+
         return urwid.Columns([
-            ('weight', 1, left_column),
+            ('weight', 1, urwid.LineBox(self.label_listbox, title="📂 Labels")),
             ('weight', 2, main_right)
         ])
 
@@ -493,6 +524,8 @@ class CalibreUI:
         elif key in ('u', 'U'):
             self.undo_last_label(None)
         elif key == 'enter':
+            if self.in_search_mode:
+                return
             focus_widget = self.label_listbox.focus
             focus_position = self.label_listbox.focus_position
             base = focus_widget.base_widget
