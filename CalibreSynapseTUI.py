@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# v. 1.5
+# v. 1.6.1
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import urwid
@@ -64,6 +64,7 @@ class CalibreUI:
         self.label_page_size = 30
         self.category_page_index = {}
         self.last_active_category = None
+        self.selected_labels_order = [] # undo related
 
         self.themes = {
             "deepsea": [
@@ -156,8 +157,8 @@ class CalibreUI:
         self.update_titles()
 
     def undo_last_label(self, button):
-        if self.selected_labels:
-            last = sorted(self.selected_labels)[-1]
+        if self.selected_labels_order:
+            last = self.selected_labels_order.pop()
             self.selected_labels.remove(last)
             print(f"⏪ Removed last label: {last}")
             self.update_selected()
@@ -275,6 +276,7 @@ class CalibreUI:
 
             if not pages:
                 walker.append(urwid.Text("⚠️ No labels to display in this category."))
+                walker.append(urwid.Divider())  # <-- Always add a divider
                 continue
 
             page_index = self.category_page_index.get(field, 0)
@@ -369,8 +371,12 @@ class CalibreUI:
     def toggle_label(self, button, label):
         if label in self.selected_labels:
             self.selected_labels.remove(label)
+            if label in self.selected_labels_order:
+                self.selected_labels_order.remove(label)
         else:
             self.selected_labels.add(label)
+            if label not in self.selected_labels_order:
+                self.selected_labels_order.append(label)
         self.update_selected()
         self.update_titles()
 
@@ -511,6 +517,7 @@ class CalibreUI:
             raise urwid.ExitMainLoop()
         elif key in ('c', 'C'):
             self.selected_labels.clear()
+            self.selected_labels_order.clear()
             self.search_query = ""
             self.search_edit.set_edit_text("")
             self._refinement_cache.clear()
