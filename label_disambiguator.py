@@ -1,10 +1,9 @@
 import json
 import subprocess
-import re
 import os
 
 # === CONFIG ===
-library_path = "/srv/dev-disk-by-uuid-2856cdf9-5341-47dc-883b-1be20f8c2993/VaultUncleScrooge/Calibre Library" # Add here path to your own Calibre Library
+library_path = "/srv/dev-disk-by-uuid-2856cdf9-5341-47dc-883b-1be20f8c2993/VaultUncleScrooge/Calibre Library" # Set the path of your own Calibre Library
 vocab_path = "dynamic_vocabulary.json"
 semantic_map_path = "semantic_label_map.json"
 resolved_path = "resolved_labels.json"
@@ -57,7 +56,7 @@ def trace_books():
         json.dump(affected, f, indent=2, ensure_ascii=False)
     print(f"📚 Traced {len(affected)} affected books.")
 
-# === STEP 3: Resolve conflicts (patched to preserve unique labels) ===
+# === STEP 3: Resolve conflicts (all books) ===
 def resolve_conflicts():
     suffix_map = {
         "#genres": "-g", "#subgenre": "-sg", "#provenance": "-p",
@@ -66,6 +65,7 @@ def resolve_conflicts():
         "#reading_level": "-rl", "#publication_period": "-pp", "#awards": "-a",
         "#themes": "-t", "#length": "-l", "#pacing": "-pc", "#perspective": "-pv",
         "#subject": "-s", "#movement": "-mv", "#mangagenre": "-mg",
+        "#book_format": "",
         "authors": "", "publisher": "", "series": "", "comments": ""
     }
 
@@ -83,7 +83,7 @@ def resolve_conflicts():
         overlapping = json.load(f)
 
     resolved = {}
-    for book_id, info in affected.items():
+    for book_id, info in affected.items():  # Process all books
         title = info.get("title", "Unknown Title")
         author = info.get("author", "Unknown Author")
         updates = {}
@@ -94,13 +94,13 @@ def resolve_conflicts():
             if norm_field not in suffix_map:
                 continue
             suffix = suffix_map[norm_field]
-            if suffix == "":
-                continue
-
             updated_labels = []
             for label in labels:
                 if label in overlapping:
-                    updated_labels.append(f"{label}{suffix}")
+                    if not label.endswith(suffix):
+                        updated_labels.append(f"{label}{suffix}")
+                    else:
+                        updated_labels.append(label)
                 else:
                     updated_labels.append(label)
             updates[norm_field] = updated_labels
@@ -111,7 +111,7 @@ def resolve_conflicts():
         json.dump(resolved, f, indent=2, ensure_ascii=False)
     print(f"🧩 Resolved {len(resolved)} books with full label preservation.")
 
-# === STEP 4: Push metadata for all books ===
+# === STEP 4: Push metadata (all books, preserves # prefix) ===
 def push_metadata():
     try:
         with open(resolved_path, "r", encoding="utf-8") as f:
@@ -129,19 +129,24 @@ def push_metadata():
     processed_titles = []
     failed_titles = []
 
-    for book_id, info in list(resolved.items()):
+    skip_fields = {"#book_format"}  # Fields not supported by Calibre
+
+    for book_id, info in list(resolved.items()):  # Process all books
         title = info.get("title", "Unknown Title")
         author = info.get("author", "Unknown Author")
         updates = info.get("updates", {})
 
         if not updates:
-            print(f"⚠️ Skipping {title} — no valid fields.")
+            print(f"⚠️ Skipping '{title}' — no overlapping labels or supported fields.")
             continue
 
         cmd = ["calibredb", "set_metadata", book_id, "--with-library", library_path]
         for field, labels in updates.items():
+            if field in skip_fields:
+                print(f"⚠️ Skipping unsupported field: {field}")
+                continue
             value = ", ".join(labels)
-            cmd += ["--field", f"{field}:{value}"]
+            cmd += ["--field", f"{field}:{value}"]  # Preserve # prefix
 
         print(f"\n🚀 Pushing metadata to Calibre...\n📘 {title}\nAuthor: {author}\nBook ID: {book_id}")
         try:
