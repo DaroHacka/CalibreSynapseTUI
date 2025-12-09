@@ -1,5 +1,6 @@
+
 #!/usr/bin/env python3
-# v. 1.6.1
+# v. 1.6.2 (patched + clock)
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 import urwid
@@ -9,6 +10,7 @@ import itertools
 import feedparser
 import logging
 import re
+from datetime import datetime
 from CalibreEngine import CalibreEngine
 from ComboUsageTracker import ComboUsageTracker
 
@@ -66,6 +68,9 @@ class CalibreUI:
         self.last_active_category = None
         self.selected_labels_order = [] # undo related
 
+        # store last query result books mapping for series expansion and lookups
+        self.last_query_series_map = {}
+
         self.themes = {
             "deepsea": [
                 ('header', 'dark blue,bold', ''),
@@ -106,10 +111,6 @@ class CalibreUI:
             width=('relative', 60)  # or use 'fixed', e.g. width=50
 
         )
-        #self.logo_widget = urwid.Filler(
-        #    urwid.Padding(logo_widget_colored, left=2, right=2),
-        #    valign='top'
-        #)
 
         self.rotating_book_widget = urwid.Text("")
         footer_text_widget = urwid.Text(
@@ -117,12 +118,16 @@ class CalibreUI:
             "🟦 Blue = Standalone Book | 🟩 Green = Series"
         )
 
+        # clock widget (digital time)
+        self.clock_widget = urwid.Text("", align='right')
+
         undo_btn = urwid.Button("⏪ Undo Last", on_press=self.undo_last_label)
         undo_btn_map = urwid.AttrMap(undo_btn, 'header', focus_map='reversed')
 
         self.footer = urwid.Columns([
             ('weight', 5, footer_text_widget),
-            ('pack', undo_btn_map)
+            ('pack', undo_btn_map),
+            ('pack', self.clock_widget),
         ])
 
         self.toggle_btn = urwid.Button("🛑 Toggle Feeds", on_press=self.toggle_feeds)
@@ -152,6 +157,9 @@ class CalibreUI:
         self.frame_gen = self.book_frames()
         self.loop.set_alarm_in(0.1, self.animate_book)
         self.loop.set_alarm_in(0.2, lambda loop, data: self.refresh_suggestions())
+
+        # start clock updater (every second)
+        self.update_clock(None, None)
 
         self.build_label_list()
         self.update_titles()
@@ -233,6 +241,69 @@ class CalibreUI:
 
         self._filtered_label_cache[cache_key] = filtered
         return filtered
+
+    def compute_label_counts(self, field, refinement):
+        """
+        Produce a mapping of label (lowercase) -> count.
+
+        Strategy:
+        - If refinement contains explicit counts for this field, use them as base.
+        - Otherwise, fall back to scanning engine.label_map and counting:
+            - If an item belongs to a series, count that series as 1 for the label (regardless of how many volumes).
+            - If an item does NOT belong to a series, count it per book id.
+        """
+        counts = {}
+
+        # Start from refinement counts if available
+        if refinement and field in refinement:
+            try:
+                for lbl, cnt in refinement.get(field, []):
+                    counts[lbl.lower()] = int(cnt)
+            except Exception:
+                pass  # defensive
+
+        # If engine or label_map missing, return whatever we have
+        if not self.engine or not hasattr(self.engine, "label_map"):
+            return counts
+
+        per_label_series = {}  # key -> set of series names (lower)
+        per_label_books = {}   # key -> set of book ids (standalone)
+
+        for book_id, info in self.engine.label_map.items():
+            labels_by_field = info.get("labels_by_field", {})
+            label_values = labels_by_field.get(field, [])
+            if not label_values:
+                continue
+
+            # determine series name if present
+            series_name = ""
+            for k in ('series', 'series_name', 'series_title'):
+                s = info.get(k)
+                if s:
+                    series_name = str(s).strip().lower()
+                    break
+
+            for raw_lbl in label_values:
+                key = raw_lbl.strip().lower()
+                if not key:
+                    continue
+                if series_name:
+                    per_label_series.setdefault(key, set()).add(series_name)
+                else:
+                    per_label_books.setdefault(key, set()).add(book_id)
+
+        # Merge results: refinement counts stay if present, otherwise use computed counts.
+        all_keys = set(counts.keys()) | set(per_label_series.keys()) | set(per_label_books.keys())
+        for key in all_keys:
+            if key in counts:
+                continue
+            series_set = per_label_series.get(key, set())
+            book_set = per_label_books.get(key, set())
+            # count series as single entries (1 per unique series)
+            counts[key] = len(series_set) + len(book_set)
+
+        return counts
+
     def build_label_list(self, restore_focus_position=None, refinement=None):
         """Normal category/label list, unless in search mode."""
         if self.in_search_mode:
@@ -271,7 +342,8 @@ class CalibreUI:
             split_labels = self.get_split_labels(field, raw)
 
             filtered_labels = self.get_filtered_labels(field, split_labels, refinement)
-            label_counts = {lbl.lower(): count for lbl, count in refinement.get(field, [])}
+            # compute counts with series collapsed to 1
+            label_counts = self.compute_label_counts(field, refinement)
             pages = self.get_paginated_labels(field, filtered_labels)
 
             if not pages:
@@ -287,8 +359,9 @@ class CalibreUI:
             for label in current_page:
                 key = label.lower()
                 is_selected = key in self.selected_labels
-                count = label_counts.get(key, "")
-                count_str = f" ({count})" if count else ""
+                count = label_counts.get(key, 0)
+                # show count only when >0, otherwise leave empty
+                count_str = f" ({count})" if count > 0 else ""
                 label_text = f"  • {self.strip_suffix(label)}{count_str}"
                 btn = urwid.Button(label_text)
                 btn._category = field
@@ -428,6 +501,9 @@ class CalibreUI:
         walker = self.title_listbox.body
         walker.clear()
 
+        # reset series map for this query
+        self.last_query_series_map = {}
+
         if not self.selected_labels or not self.engine:
             walker.append(urwid.Text("📘 Select a label to view matching titles."))
             self.build_label_list()
@@ -451,6 +527,35 @@ class CalibreUI:
         books = result.get("books", {})
         seen_series = set()
 
+        # Build mapping series -> volumes (only from current result/books)
+        for book_id, data in books.items():
+            if not data:
+                continue
+            title = self.engine.label_map.get(book_id, {}).get("title", "").strip()
+            raw_series = (data.get("series") or "").strip()
+            norm_series = raw_series.lower() if raw_series else None
+            author = data.get("author", "Unknown")
+
+            volume_entry = {
+                "book_id": book_id,
+                "title": title or book_id.split(":")[-1].strip(),
+                "author": author,
+                "raw_title": title,
+                "data": data
+            }
+
+            # attach description/synopsis if available in label_map (store raw html but will unwrap later)
+            info = self.engine.label_map.get(book_id, {}) if self.engine else {}
+            desc = info.get("description") or info.get("summary") or info.get("comments") or info.get("annotation") or ""
+            volume_entry["description"] = desc
+
+            if norm_series:
+                self.last_query_series_map.setdefault(norm_series, []).append(volume_entry)
+            else:
+                # for standalone books, keep them keyed by book_id so open_volume_info can find them if clicked
+                self.last_query_series_map.setdefault(book_id, []).append(volume_entry)
+
+        # Now display entries: one row per series (clickable) and per standalone book
         for book_id, data in books.items():
             if not data:
                 continue
@@ -460,21 +565,120 @@ class CalibreUI:
             norm_series = raw_series.lower() if raw_series else None
             author = data.get("author", "Unknown")
 
-            if norm_series and norm_series in seen_series:
-                continue
             if norm_series:
+                # Create a single clickable row for the series (one line only)
+                if norm_series in seen_series:
+                    continue
                 seen_series.add(norm_series)
+                display_title = title or (self.last_query_series_map.get(norm_series, [{}])[0].get("title", "") or book_id)
+                btn_label = f"📗 {display_title} (Series: {raw_series}) — Author: {author}"
+                btn = urwid.Button(btn_label)
+                urwid.connect_signal(btn, 'click', self.open_series_popup, user_arg=norm_series)
+                walker.append(urwid.AttrMap(btn, 'title', focus_map='reversed'))
+            else:
+                # standalone book -> clickable to show description/info
+                display_title = title or book_id.split(":")[-1].strip()
+                btn_label = f"📘 {display_title} — Author: {author}"
+                btn = urwid.Button(btn_label)
+                # create the volume dict for this standalone and pass to open_volume_info
+                volume = self.last_query_series_map.get(book_id, [{}])[0]
+                urwid.connect_signal(btn, 'click', self.open_volume_info, user_arg=volume)
+                walker.append(urwid.AttrMap(btn, 'title', focus_map='reversed'))
 
-            if not title:
-                title = book_id.split(":")[-1].strip()
-                title = re.sub(r'\(\d+\)$', '', title).strip()
+    def open_series_popup(self, button, series_key):
+        """
+        Show an overlay listing volumes in the series (from the last query results).
+        Each volume is shown with title and author. A Close button dismisses the overlay.
+        """
+        volumes = self.last_query_series_map.get(series_key, [])
 
-            if title and raw_series:
-                walker.append(urwid.Text(("title", f"📗 {title} (Series: {raw_series}) — Author: {author}")))
-            elif title:
-                walker.append(urwid.Text(("title", f"📘 {title} — Author: {author}")))
-            elif raw_series:
-                walker.append(urwid.Text(("series", f"📚 Series: {raw_series}) — Author: {author}")))
+        body = []
+        if not volumes:
+            body.append(urwid.Text("No volumes found for this series in the current result set."))
+        else:
+            # Show series pretty title (attempt to restore capitalization)
+            pretty_series = volumes[0].get("data", {}).get("series") or series_key
+            body.append(urwid.Text(("header", f"Series: {pretty_series} — Volumes ({len(volumes)} shown)")))
+            body.append(urwid.Divider())
+            for v in sorted(volumes, key=lambda x: (x.get("title") or "").lower()):
+                t = v.get("title") or v.get("book_id")
+                a = v.get("author", "Unknown")
+                vol_btn = urwid.Button(f"• {t} — {a}")
+                urwid.connect_signal(vol_btn, 'click', self.open_volume_info, user_arg=v)
+                body.append(urwid.AttrMap(vol_btn, 'raw', focus_map='reversed'))
+            body.append(urwid.Divider())
+
+        close_btn = urwid.Button("Close")
+        urwid.connect_signal(close_btn, 'click', lambda btn: self._close_overlay())
+        body.append(urwid.AttrMap(close_btn, 'header', focus_map='reversed'))
+
+        pile = urwid.Pile(body)
+        filler = urwid.Filler(pile, valign='top')
+        box = urwid.LineBox(filler, title="Series Volumes")
+        overlay = urwid.Overlay(box, self.layout,
+                                align='center', width=('relative', 70),
+                                valign='middle', height=('relative', 70))
+        self.loop.widget = overlay
+
+        # allow ESC to close
+        def dismiss(key):
+            if key in ('esc', 'p'):
+                self._close_overlay()
+
+        self.loop.unhandled_input = dismiss
+
+    def open_volume_info(self, button, volume):
+        """
+        Show a popup with detailed info about the selected volume including description (cleaned from HTML).
+        volume: dict with keys book_id, title, author, description, data
+        """
+        title = volume.get("title") or volume.get("book_id")
+        author = volume.get("author", "Unknown")
+        book_id = volume.get("book_id")
+        # Attempt to collect more metadata from engine.label_map if available
+        info = self.engine.label_map.get(book_id, {}) if self.engine else {}
+        series = info.get("series") or info.get("series_name") or ""
+        # Prefer description passed in volume; fallback to label_map fields
+        desc = volume.get("description") or info.get("description") or info.get("summary") or info.get("comments") or ""
+        cleaned_desc = re.sub(r'<.*?>', '', desc).strip()
+        if not cleaned_desc:
+            cleaned_desc = "No description available."
+
+        meta_lines = [
+            ("title", f"Title: {title}"),
+            ("series", f"Series: {series}" if series else "Series: —"),
+            ("raw", f"Author: {author}"),
+            ("raw", f"Book ID: {book_id}"),
+            ("raw", ""),
+            ("raw", "Description:"),
+        ]
+
+        body = [urwid.Text(t[1]) for t in meta_lines]
+        body.append(urwid.Divider())
+        body.append(urwid.Text(cleaned_desc, wrap='any'))
+        body.append(urwid.Divider())
+
+        close_btn = urwid.Button("Close")
+        urwid.connect_signal(close_btn, 'click', lambda btn: self._close_overlay())
+        body.append(urwid.AttrMap(close_btn, 'header', focus_map='reversed'))
+
+        pile = urwid.Pile(body)
+        box = urwid.LineBox(urwid.Filler(pile, valign='top'), title="Volume Info")
+        overlay = urwid.Overlay(box, self.layout,
+                                align='center', width=('relative', 70),
+                                valign='middle', height=('relative', 70))
+        self.loop.widget = overlay
+
+        def dismiss(key):
+            if key in ('esc', 'p'):
+                self._close_overlay()
+
+        self.loop.unhandled_input = dismiss
+
+    def _close_overlay(self):
+        self.loop.widget = self.layout
+        self.loop.unhandled_input = self.handle_input  # restore normal handler
+
     def build_body(self):
         left_column = urwid.LineBox(self.label_listbox, title="📂 Labels")
 
@@ -511,6 +715,19 @@ class CalibreUI:
     def animate_book(self, loop, user_data):
         self.rotating_book_widget.set_text(next(self.frame_gen))
         loop.set_alarm_in(0.1, self.animate_book)
+
+    def update_clock(self, loop, user_data):
+        """
+        Update the digital clock every second.
+        """
+        now = datetime.now()
+        self.clock_widget.set_text(now.strftime("%Y-%m-%d %H:%M:%S"))
+        # re-schedule
+        try:
+            self.loop.set_alarm_in(1, self.update_clock)
+        except Exception:
+            # in case loop is not yet available or shutting down
+            pass
 
     def handle_input(self, key):
         if key in ('q', 'Q'):
