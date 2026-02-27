@@ -1,0 +1,335 @@
+{
+  "Perspective": {
+    "alternating lens": {
+      "members": [
+        "alternating chapters",
+        "alternating first-person",
+        "alternating first-person and third-person",
+        "alternating lens",
+        "alternating third-person",
+        "alternating viewpoints"
+      ],
+      "description": ""
+    },
+    "detective lens": {
+      "members": [
+        "detective and personal",
+        "detective and suspect viewpoints",
+        "detective lens",
+        "detective-centered",
+        "detective-pv"
+      ],
+      "description": ""
+    },
+    "ensemble lens": {
+      "members": [
+        "ensemble",
+        "ensemble cast with shifting focus",
+        "ensemble cast-pv",
+        "ensemble chaos",
+        "ensemble focus",
+        "ensemble lens",
+        "ensemble pov",
+        "ensemble viewpoint",
+        "ensemble-driven-pv",
+        "ensemble-pv"
+      ],
+      "description": ""
+    }
+  },
+  "Book Format": {
+    "comics": {
+      "members": [
+        "comic",
+        "comic book",
+        "comic collection",
+        "comic issue (vintage)",
+        "comic strip collection",
+        "comics"
+      ],
+      "description": ""
+    },
+    "excerpt": {
+      "members": [
+        "excerpt",
+        "excerpt collection"
+      ],
+      "description": ""
+    },
+    "manga": {
+      "members": [
+        "manga",
+        "manga chapter",
+        "manga \u2013 full color"
+      ],
+      "description": ""
+    },
+    "novels": {
+      "members": [
+        "novel",
+        "novel collection",
+        "novel-in-stories"
+      ],
+      "description": ""
+    },
+    "short stories": {
+      "members": [
+        "short stories",
+        "short story",
+        "short story collection"
+      ],
+      "description": ""
+    }
+  },
+  "Book's Setting": {
+    "1920s": {
+      "members": [
+        "1919 new england",
+        "1920s new york"
+      ],
+      "description": ""
+    },
+    "1930s": {
+      "members": [
+        "1930s america",
+        "1930s-bs",
+        "1930s\u20131950s america"
+      ],
+      "description": ""
+    },
+    "1940s": {
+      "members": [
+        "1940s",
+        "1940s los angeles"
+      ],
+      "description": ""
+    },
+    "1950s": {
+      "members": [
+        "1950s america",
+        "1950s baseball circuit",
+        "1950s-bs"
+      ],
+      "description": ""
+    },
+    "1960s": {
+      "members": [
+        "1960s america",
+        "1960s\u20131990s america; college campuses; childhood neighborhoods"
+      ],
+      "description": ""
+    },
+    "19th century": {
+      "members": [
+        "1820s",
+        "19th century america",
+        "19th century britain",
+        "19th-century england",
+        "19th-century europe",
+        "19th-century frontier",
+        "19th-century new zealand"
+      ],
+      "description": ""
+    },
+    "abandoned place": {
+      "members": [
+        "abandoned buildings",
+        "abandoned courthouse",
+        "abandoned facility",
+        "abandoned field",
+        "abandoned highways",
+        "abandoned houses",
+        "abandoned rest stop",
+        "abandoned shop",
+        "abandoned theme parks",
+        "abandoned town"
+      ],
+      "description": ""
+    },
+    "academic location": {
+      "members": [
+        "academic circles",
+        "academic halls",
+        "academic spaces",
+        "academy city"
+      ],
+      "description": ""
+    },
+    "airplane vehicles": {
+      "members": [
+        "airplane cabin",
+        "airplanes",
+        "airship cities",
+        "airship routes",
+        "airships"
+      ],
+      "description": ""
+    },
+    "alien setting": {
+      "members": [
+        "alien biosphere",
+        "alien bureaucracies",
+        "alien colonies",
+        "alien colony",
+        "alien crash site",
+        "alien dimension",
+        "alien dungeon",
+        "alien god corpses",
+        "alien landscapes",
+        "alien planets",
+        "alien realms",
+        "alien sites",
+        "alien society aboard voyager and planetary ruins",
+        "alien spacecraft",
+        "alien strongholds",
+        "alien territories",
+        "alien vessels",
+        "alien world",
+        "alien worlds",
+        "alien zones",
+        "alien-occupied skyline"
+      ],
+      "description": ""
+    }
+  },
+  "Reading Mood": {
+    "action-driven": {
+      "members": [
+        "action-driven",
+        "action-packed",
+        "action-packed-rm"
+      ],
+      "description": ""
+    },
+    "adrenaline-fueled": {
+      "members": [
+        "adrenaline",
+        "adrenaline-fueled"
+      ],
+      "description": ""
+    },
+    "emotional": {
+      "members": [
+        "emotional",
+        "emotional-rm",
+        "emotionally charged",
+        "emotionally charged-rm",
+        "emotionally complex",
+        "emotionally draining",
+        "emotionally engaging",
+        "emotionally expansive",
+        "emotionally fragmented",
+        "emotionally grounded",
+        "emotionally intense",
+        "emotionally invested",
+        "emotionally layered",
+        "emotionally layered-rm",
+        "emotionally light",
+        "emotionally muted",
+        "emotionally raw",
+        "emotionally raw-rm",
+        "emotionally resonant-rm",
+        "emotionally rich",
+        "emotionally satisfying",
+        "emotionally vibrant",
+        "emotionally volatile",
+        "emotionally warm-rm"
+      ],
+      "description": ""
+    },
+    "empowering": {
+      "members": [
+        "empowered",
+        "empowering",
+        "empowering-rm"
+      ],
+      "description": ""
+    },
+    "disturbing": {
+      "members": [
+        "disorienting",
+        "disorienting-rm",
+        "disquieting",
+        "disturbed-rm",
+        "disturbing",
+        "disturbing-rm"
+      ],
+      "description": ""
+    },
+    "genre": {
+      "members": [
+        "genre-aware",
+        "genre-bending",
+        "genre-blending",
+        "genre-loving",
+        "genre-rich",
+        "genre-savvy",
+        "genre-spanning"
+      ],
+      "description": ""
+    },
+    "historical": {
+      "members": [
+        "historical",
+        "historically charged",
+        "historically grounded",
+        "historically immersive",
+        "historically rich"
+      ],
+      "description": ""
+    },
+    "family-focused": {
+      "members": [
+        "family-focused",
+        "family-friendly"
+      ],
+      "description": ""
+    },
+    "fast-paced": {
+      "members": [
+        "fast paced",
+        "fast-paced",
+        "fast-paced-rm"
+      ],
+      "description": ""
+    },
+    "intellectual": {
+      "members": [
+        "intellectual",
+        "intellectual-rm",
+        "intellectually curious",
+        "intellectually intense",
+        "intellectually rich"
+      ],
+      "description": ""
+    }
+  },
+  "Publication Period": {
+    "modern": {
+      "members": [
+        "1990s",
+        "1990s (posthumous)",
+        "1991\u20131992",
+        "19th century",
+        "19th century edition",
+        "2000-01-02",
+        "2000s",
+        "2000s-pp",
+        "2009-06-15",
+        "2010s",
+        "2010s (full-color reprint)",
+        "2010s\u20132020s",
+        "2016",
+        "2016\u20132017",
+        "2018",
+        "2018\u20132019",
+        "2020s",
+        "2020s (english edition)",
+        "modern",
+        "modern edition",
+        "modern-pp"
+      ],
+      "description": ""
+    }
+  }
+}

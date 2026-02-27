@@ -1,0 +1,6 @@
+# CalSynTUI+ Requirements
+# Python dependencies for CalibreSynapse TUI with Group Labels
+
+urwid>=3.0.0
+feedparser>=6.0.0
+pyfiglet>=0.8.0

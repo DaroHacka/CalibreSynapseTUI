@@ -1,0 +1,97 @@
+================================================================================
+                    CalSynTUI+ IMPLEMENTATIONS & FIXES
+================================================================================
+                              February 2026
+                         Version 1.7.0 (CalSynTUI+)
+================================================================================
+
+This document outlines all new features, bug fixes, and improvements made
+compared to the previous version of CalibreSynapseTUI.
+
+================================================================================
+                               NEW FEATURES
+================================================================================
+
+1. GROUP LABELS (Press 'G')
+   ------------------------------------------------------------------------
+   - Create, rename, and delete groups of related labels
+   - Example: Group "dual lens" containing "dual lens", "dual pov", "dual-pv"
+   - Groups are expandable in the label list (click to expand/collapse)
+   - Clicking a group shows ALL books that have ANY of the group's member
+     labels (OR logic)
+   - Groups persist in label_groups.json
+
+2. DEMO-DATABASE FOLDER
+   ------------------------------------------------------------------------
+   - Included sample data (semantic_label_map.json, dynamic_vocabulary.json,
+     label_groups.json, combo_usage_cache.json) for interactive preview
+   - Users can test the TUI without having their own Calibre data
+
+3. IMPROVED LAUNCHER
+   ------------------------------------------------------------------------
+   - CalSynTUI+ launcher now uses relative paths
+   - Works from any directory when placed in the project folder
+
+================================================================================
+                              BUG FIXES
+================================================================================
+
+1. LABEL COUNTING BUG (Critical)
+   ------------------------------------------------------------------------
+   - Location: CalibreSynapseTUI.py - compute_label_counts() method
+   - Problem: Labels were being counted from ALL fields, not just the current
+     field. This caused incorrect counts (e.g., "character-focused" showing
+     57 books in Perspective when it only had 5 books in that field)
+   - Fix: Modified the counting logic to filter by the specified field only
+   - Impact: Label counts are now accurate
+
+2. CRASH ON GROUP CLICK
+   ------------------------------------------------------------------------
+   - Location: CalibreSynapseTUI.py - _build_titles_with_group() method
+   - Problem: Code called self.show_book_details() which doesn't exist
+   - Error: AttributeError: 'CalibreUI' object has no attribute 'show_book_details'
+   - Fix: Changed to self.open_volume_info() with correct arguments
+   - Impact: Groups now display books correctly without crashing
+
+3. FILE PATH ISSUES
+   ------------------------------------------------------------------------
+   - Problem: Running from different directories caused files to be saved to
+     wrong locations
+   - Fix: Made all paths absolute using SCRIPT_DIR in CalibreSynapseTUI.py
+   - Fixed ComboUsageTracker path handling
+   - Fixed launcher (CalSynTUI+) to use relative paths
+
+================================================================================
+                            FILES MODIFIED
+================================================================================
+
+  File                        | Description
+  ----------------------------|-------------------------------------------------
+  CalibreSynapseTUI.py        | Main TUI - Group Labels feature + bug fixes
+  CalibreEngine.py            | Added label_groups support
+  ComboUsageTracker.py        | Path handling fixes
+  CalSynTUI+                  | Launcher with relative paths
+  Demo-Database/              | NEW: Sample data for demo/preview
+
+================================================================================
+                          HOW TO USE GROUP LABELS
+================================================================================
+
+1. Press 'G' to open the Group Management dialog
+2. Choose action:
+   - [C] Create Group: Enter group name, then add labels from the list
+   - [R] Rename Group: Select group to rename
+   - [D] Delete Group: Select group to delete
+3. In label list:
+   - Click on group name (▶) to expand and see member labels
+   - Click on group again (▼) to collapse
+   - Click on any label within group to view matching books
+
+================================================================================
+                           KNOWN ISSUES
+================================================================================
+
+- The "detective lens" group may show 4 books instead of 6 in some cases
+  (display logic issue being investigated)
+
+================================================================================
