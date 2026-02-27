@@ -1,0 +1,153 @@
+
+## 🛠️ Metadata Curation Rules for `label_disambiguator.py`-Processed Entries
+
+### 1. **Use Only Established Categories**
+- Stick to your defined metadata fields:
+  - `#genres`, `#book_format`, `#provenance`, `#writing_style`, `#narrative_structure`, `#emotional_tone`, `#character_traits`, `#book_setting`, `#reading_mood`, `#reading_level`, `#publication_period`, `#themes`, `#length`, `#pacing`, `#perspective`, `#subject`, `#movement`
+- **Do not invent new categories** (e.g., no `#artistic_style`, `#character_arc`, etc.)
+
+---
+
+### 2. **Preserve Existing Labels Exactly as They Appear**
+- If a label has a suffix (e.g. `thoughtful-et`, `legacy-t`, `heroism-s`), **do not alter or remove it**.
+- These suffixes were added by `label_disambiguator.py` to resolve cross-category collisions and are polished later in CalibreSynapseTUI.
+- **Never duplicate or reformat existing suffixed labels.**
+
+---
+
+### 3. **Add New Labels Only Where Needed**
+- You may enrich a category **only if it feels underrepresented**.
+- When adding new labels:
+  - **Do not add suffixes** (even if other labels in the same category have them).
+  - Example: If `themes` already includes `family-t`, you may add `mentorship` — not `mentorship-t`.
+
+---
+
+### 4. **Respect Category–Label Alignment**
+- Ensure each label belongs to the correct category:
+  - `superhero` → `#genres`
+  - `comics` → `#book_format`
+  - `usa-p` → `#provenance`
+  - `all ages` → `#reading_level`
+  - `2010s` → `#publication_period`
+  - `third-person` → `#perspective`
+  - etc.
+
+---
+
+### 5. **Avoid Overwriting or Replacing Existing Labels**
+- If a base label (e.g. `themes`) was overwritten by suffixed labels (e.g. `family-t`, `identity-t`), **restore the base label** by re-adding it:
+  ```bash
+  --field "#themes:family-t, identity-t, legacy-t, mentorship"
+  ```
+  → Here, `mentorship` is added without a suffix, and the base label `themes` is preserved.
+
+---
+
+### 6. **Comments Field Should Be Expressive but Not Redundant**
+- Use the `comments` field to summarize emotional tone, narrative arc, and thematic focus.
+- Avoid repeating labels verbatim — instead, reflect their meaning in prose.
+
+
+### ✅ Refined Metadata Guidelines
+
+#### 🧩 Field vs Label
+- **Fields** are categories like `series`, `publisher`, `perspective`.
+- **Labels** are values inside fields: e.g. `comedy`, `1960s`, `adult`, `action`, `cheerful`, `clever`.
+
+### Book Format
+- Never use "book" as a book format because each and every book has their own format, it could be novel, non-fiction,  biography, comics, manga, graphic novel, art book, history book, etc.
+
+#### 🔢 Label Quantity & Format
+- Use **up to 10 labels per field**, only if necessary.
+- **One-word labels preferred**, but **multi-word labels allowed** when needed (e.g. `alien worlds`, `childhood imagination`).
+- Use **commas**, not "and": e.g. `introspective, emotional`.
+
+#### 📚 Format-Specific Rules
+- If the file is **manga or comics**, append **(manga)** or **(comics)** to the `series` name.
+- If it's a **book**, use the plain series name.
+- Use:
+  - `#mangagenre:` for manga
+  - `#genres:` for comics and other formats
+- use proper manga categorizaion: e.g. shojo, shonen, seinen, mecha, josei, slice of life etc.
+
+
+#### 🕰️ Publication Period
+- Use either:
+  - Decades: `1980s`, `2000s`
+  - Descriptors: `Ancient`, `Classics`, `Modern Classics`, `Modern`
+- You may combine: e.g. `"publication_period": ["2000s", "modern"]`
+
+#### 🌍 Provenance
+- Use **country of origin**, not publisher.
+- Use lowercase for `usa`, `uk`; full names for others: `Japan`, `France`, `Canada`.
+- For multi-national works: `Canada, France, Norway`
+
+#### 📏 Length
+Use qualitative descriptors:
+- `short` — under ~250 pages
+- `medium` — ~250–400 pages
+- `medium to long` — ~400–600 pages
+- `long` — ~600–800 pages
+- `very long` — ~800–1000 pages
+- `massively long` — 1000+ pages or structurally epic
+
+#### 🧠 Subject
+- Focus on **universal concepts or motifs**.
+- You can also focus on things like: how the homicide is conducted in case it's a crime story, so for example by using labels like (acid, bullying, clocktower murder, blackmail, betrayal, cosplay affair, coming of age, creative process, crime investigation, cult murders etc.) and it extends to other descriptor depending on the book genre and content.
+- Avoid:
+  - Specific characters or factions
+  - Plot-specific events
+  - In-universe tech or locations unless conceptually broad
+field should reflect universal concepts, motifs, or domains that the work engages with — not specific characters, plot points, or in-universe elements. It’s about the intellectual or thematic territory the book occupies, not its narrative cast
+
+
+#### 🧒 Reading Level
+Use: `children`, `teen`, `teen and up`, `young adult`, `adult`, `all ages`, `mature`
+
+#### 👁️ Perspective
+- Use only: `first-person`, `third-person`
+
+#### 🧭 Movement
+- Use cultural or literary movement if applicable.
+- Leave blank if none fits.
+
+#### 🗺️ Book Setting
+- Use **generalized descriptors**: `estate`, `village`, `urban district`, `countryside`
+- Exception: include **recognized landmarks or regions** (e.g. `Tower of London`, `Paris`)
+- You may prefix with country: `Japan, forest`
+
+#### ✍️ Description Guidelines
+- Always include:
+  - Format intro: manga or comics
+  - Colorful HTML emoticons
+  - Info about the book or collection
+  - Biographical details about the author
+
+
+------------------------------
+
+- A field are categories like series, publisher, perspective. A labels are words you use inside the field like: comedy, 1960s, adult,    action, cheerful, clever etc.
+- You can add up to ten labels per field but only if necessary, sometimes one is enough as for example provenance. Never overdo when you think the labels you selected are enough. A label can contain more than one word, but try to use only one when possible. For example alien worlds, alternative reality, childhood imagination etc. need more than one word and you are free to use single words and combined words inside the same field.
+- When you write down an entry use comma rather than "and" for example never introspective and emotional. Better introspective, emotional - this way the database is able to separate them.
+- in the descriptions add colorful emoticons in html format . Add a manga or comics description on top and information about the author life and of course information about the book or collection at hand.
+- If the file we are about to process are either manga or comics, add always (manga) or (comics) at the end of the name in the series accordingly. If they are book don't add anything except the name of the series.
+- If they are manga use field mangagenre. If they are comics or any other format use field genres. That means, when you process a manga, remove #genres: and add #mangagenre. And viceversa, remove #mangagenre and add #genres. Also in #mangagenre aside from typical label genres like action, romance, adventure, fantasy you can use typical labels used in manga like shonen, gender-bender, ecchi, shojo, slice of life etc.
+- In manga add M at the end of each label: e.g. romanceM, actionM, seinenM, slice of lifeM etc.
+- on publication period I can either use decades 1980s, 1990s, 2000s or ancient, classics, modern classics, modern, vintage
+- try to use labels in the singular form. E.g. forests -> forest, labs -> lab, sanctuaries -> sanctuary. Except for the following labels: #book_format: comics - always in the plural form.
+- The subject: field should reflect universal concepts, motifs, or domains that the work engages with — not specific characters, plot points, or in-universe elements. It’s about the intellectual or thematic territory the book occupies, not its narrative cast. Avoid Specific characters or factions (e.g., “Bene Gesserit,” “Paul Atreides”), Plot-specific events (e.g., “murder of a novelist”, In-universe technologies or locations unless they represent broader concepts (e.g., “no-ships” ❌ vs. “technological opacity” ✅)
+- length: — Expressive, Scalable, Page-Free Descriptors The length: field now uses qualitative descriptors instead of page counts. This allows for more flexible, reader-oriented metadata that reflects the reading experience rather than raw numbers. Standard scale: short — brief, under ~250 pages / medium — ~250–400 pages / medium to long — ~400–600 pages / long — ~600–800 pages / very long — ~800–1000 pages / massively long — 1000+ pages or structurally epic. Use these terms to convey narrative density and scope, not just physical length. For example, a 350-page novel with dense philosophical prose might still feel “medium to long.”
+- About reading_level use labels like: children, teen, teen and up, young adult, adult, all ages, mature
+- always write 1) first person 2) third-person
+basically one uses the - symbol and the other doesn't.
+- movement is about the literal or cultural movement, so if you feel they don't belong to any particular movement you can leave it empty
+- Provenance always use the country not the publisher. If it was published in USA use usa, if it was published in Japan use Japan. United States and United Kingdom are the two exception where you have to use the abbreviated form: uk, usa. All the other you can use the normal form: e.g. Europe, France, Belgium, China, Japan, Brasil, Canada. If is a work of author from different countries or something like that separate the countries with a comma: e.g. Canada, France, Norway.
+- publication_period: you need to use only decades like 1950s or 1980s in this exact same format. However you can use "Ancient, Classics, Modern Classics, Modern" because the field is dynamic and not atomic so for example: "publication_period": ["2000s", "modern"]
+- When you write down an entry use comma rather than "and"
+- In the descriptions add colorful emoticon in HTML format and info about the book but also biographical data about the author
+- On provenance only write down the Nationality (USA, France, Japan, Canada) and not the provenance in editorial sense
+- Don't use long labels, but maximum three words labels even thouth try to stick to one: e.g. whodunit, crime fiction, crime classics, comedy, existential dread, fast paced... but never fast paced mounting to unsettling feelings... etc.
+- In book_setting use generalized location descriptors such as “estate,” “village,” “seaside town,” “urban district,” or “countryside” instead of specific place names, house names, or obscure addresses. Exception: You may include widely recognized landmarks or regions (e.g., Tower of London, Cornwall, Paris, Japan) if they are central to the story or universally known. You may include the country name (e.g., England, France, Japan) before the descriptor, separated by a comma, if the country is known or central to the story. When generating metadata, also provide the more specific version of the setting outside the code block for reference and comparison.
+- Inside the perspective field only add the perspective not the name of a particular character.
+- always use third-person and not third person

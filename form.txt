@@ -1,0 +1,31 @@
+for ID in $(calibredb list \
+  --with-library "/srv/dev-disk-by-uuid-2856cdb9-5991-47dc-886b-1be20f8c2993/ArkVault/Calibre Library" \
+  --search "title:'SERIES TITLE HERE'" \
+  --fields id --for-machine | cut -f1); do
+
+  calibredb set_metadata $ID \
+    --with-library "/srv/dev-disk-by-uuid-2856cdb9-5991-47dc-886b-1be20f8c2993/ArkVault/Calibre Library" \
+    --field "#genres:" \
+    --field "#subgenre:" \
+    --field "#book_format:" \
+    --field "#provenance:" \
+    --field "#writing_style:" \
+    --field "#emotional_tone:" \
+    --field "#character_traits:" \
+    --field "#book_setting:" \
+    --field "#reading_mood:" \
+    --field "#reading_level:" \
+    --field "#publication_period:" \
+    --field "#awards:" \
+    --field "#themes:" \
+    --field "#length:" \
+    --field "#pacing:" \
+    --field "#perspective:" \
+    --field "#subject:" \
+    --field "#movement:" \
+    --field "authors:" \
+    --field "publisher:" \
+    --field "series:" \
+    --field "pubdate:" \
+    --field "comments:"
+done
