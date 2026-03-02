@@ -70,7 +70,8 @@ class CalibreUI:
         self.search_query = ""
         self.current_theme = "deepsea"
         self.feeds_enabled = True
-        self.label_page_size = 30
+        self.label_page_size = 15
+        self.group_page_size = 15
         self.category_page_index = {}
         self.last_active_category = None
         self.selected_labels_order = [] # undo related
@@ -369,7 +370,9 @@ class CalibreUI:
             cached = self.usage_tracker.get(combo_key)
             if cached:
                 filtered_book_ids = set(cached.get("books", {}).keys())
-
+        
+        # Keep alphabetical order - don't reorder fields
+        
         for field in all_fields:
             is_expanded = self.expanded_categories.get(field, False)
             toggle = "▼" if is_expanded else "▶"
@@ -395,9 +398,27 @@ class CalibreUI:
             filtered_labels = [l for l in filtered_labels if l.lower() not in group_member_set]
 
             label_counts = self.compute_label_counts(field, refinement, filtered_book_ids)
-            pages = self.get_paginated_labels(field, filtered_labels)
-
-            for group_name, group_data in groups.items():
+            
+            # Group pagination (15 per page)
+            group_list = sorted(groups.keys())
+            group_page_key = f"{field}_groups"
+            group_page_index = getattr(self, f'group_page_index_{group_page_key}'.replace('-', '_'), 0)
+            
+            # Simple pagination for groups
+            group_pages = []
+            for i in range(0, len(group_list), self.group_page_size):
+                group_pages.append(group_list[i:i + self.group_page_size])
+            
+            if not group_pages:
+                group_pages = [[]]
+            
+            group_page_index = min(group_page_index, len(group_pages) - 1)
+            setattr(self, f'group_page_index_{group_page_key}'.replace('-', '_'), group_page_index)
+            current_group_page = group_pages[group_page_index]
+            
+            # Render groups for current page
+            for group_name in current_group_page:
+                group_data = groups[group_name]
                 members = group_data.get("members", [])
                 group_key = (field, group_name)
                 is_group_expanded = group_key in self.expanded_groups
@@ -407,7 +428,6 @@ class CalibreUI:
                 group_text = f"  {group_toggle} {group_name} ({total_count})"
 
                 group_btn = urwid.Button(group_text)
-                # Use lambda to properly pass both arguments
                 def make_toggle_handler(f, gname):
                     return lambda btn: self.toggle_group_expand(btn, f, gname)
                 urwid.connect_signal(group_btn, 'click', make_toggle_handler(field, group_name))
@@ -425,11 +445,31 @@ class CalibreUI:
                         urwid.connect_signal(mbtn, 'click', self.toggle_label, user_arg=member_key)
                         mstyle = 'selected' if is_selected else 'raw'
                         walker.append(urwid.AttrMap(mbtn, mstyle, focus_map='reversed'))
-
-            if not pages:
+            
+            # Render groups pagination BELOW the groups
+            if group_list:
+                group_nav = []
+                if group_page_index > 0:
+                    prev_btn = urwid.Button("← Prev", on_press=self.prev_group_page, user_data=(group_page_key, field))
+                    group_nav.append(urwid.AttrMap(prev_btn, 'header', focus_map='reversed'))
+                
+                group_nav.append(urwid.Text(f"Groups: {group_page_index + 1}/{len(group_pages)}"))
+                
+                if group_page_index < len(group_pages) - 1:
+                    next_btn = urwid.Button("Next →", on_press=self.next_group_page, user_data=(group_page_key, field))
+                    group_nav.append(urwid.AttrMap(next_btn, 'header', focus_map='reversed'))
+                
+                walker.append(urwid.Columns(group_nav))
+            
+            # Label pagination (15 per page)
+            if not filtered_labels:
                 walker.append(urwid.Text("⚠️ No labels to display in this category."))
-                walker.append(urwid.Divider())  # <-- Always add a divider
+                walker.append(urwid.Divider())
                 continue
+
+            pages = []
+            for i in range(0, len(filtered_labels), self.label_page_size):
+                pages.append(filtered_labels[i:i + self.label_page_size])
 
             page_index = self.category_page_index.get(field, 0)
             page_index = min(page_index, len(pages) - 1)
@@ -447,18 +487,21 @@ class CalibreUI:
                 urwid.connect_signal(btn, 'click', self.toggle_label, user_arg=key)
                 style = 'selected' if is_selected else 'raw'
                 walker.append(urwid.AttrMap(btn, style, focus_map='reversed'))
-
-            nav_buttons = []
+            
+            # Render labels pagination BELOW the labels
+            label_nav = []
             if page_index > 0:
                 prev_btn = urwid.Button("← Prev", on_press=self.prev_category_page, user_data=field)
-                nav_buttons.append(urwid.AttrMap(prev_btn, 'header', focus_map='reversed'))
-
+                label_nav.append(urwid.AttrMap(prev_btn, 'header', focus_map='reversed'))
+            
+            label_nav.append(urwid.Text(f"Labels: {page_index + 1}/{len(pages)}"))
+            
             if page_index < len(pages) - 1:
                 next_btn = urwid.Button("Next →", on_press=self.next_category_page, user_data=field)
-                nav_buttons.append(urwid.AttrMap(next_btn, 'header', focus_map='reversed'))
+                label_nav.append(urwid.AttrMap(next_btn, 'header', focus_map='reversed'))
+            
+            walker.append(urwid.Columns(label_nav))
 
-            page_info = urwid.Text(f"📄 Page {page_index + 1} of {len(pages)}")
-            walker.append(urwid.Columns(nav_buttons + [page_info]))
             walker.append(urwid.Divider())
 
         if restore_focus_position is not None:
@@ -471,9 +514,45 @@ class CalibreUI:
         self.expanded_categories[field] = not self.expanded_categories.get(field, False)
         if self.expanded_categories[field]:
             self.last_active_category = field
-            self.build_label_list()
+            # Save current focus position before rebuilding
+            focus_position = self.label_listbox.focus_position
+            self.build_label_list(restore_focus_position=focus_position)
         else:
             self.remove_category_widgets(field)
+
+    def remove_category_widgets(self, field):
+        walker = self.label_listbox.body
+        new_body = []
+        skip = False
+        for widget in walker:
+            base = widget.base_widget if isinstance(widget, urwid.AttrMap) else widget
+            if isinstance(base, urwid.Button) and base.get_label().startswith(("▼", "▶")):
+                label = base.get_label()
+                match = re.match(r"[▶▼] (.+)", label)
+                if match and match.group(1) == field:
+                    skip = True
+                    new_body.append(widget)
+                    continue
+            if skip:
+                if isinstance(base, urwid.Divider):
+                    skip = False
+                continue
+            new_body.append(widget)
+        self.label_listbox.body[:] = new_body
+
+    def get_focused_category(self):
+        focus_widget = self.label_listbox.focus
+        if not focus_widget:
+            return self.last_active_category
+        base = focus_widget.base_widget
+        if hasattr(base, '_category'):
+            return base._category
+        if isinstance(base, urwid.Button):
+            label = base.get_label()
+            match = re.match(r"[▶▼] (.+)", label)
+            if match:
+                return match.group(1)
+        return self.last_active_category
 
     def next_category_page(self, button=None, field=None):
         field = field or self.last_active_category
@@ -486,6 +565,24 @@ class CalibreUI:
         field = field or self.last_active_category
         if field:
             self.category_page_index[field] = max(0, self.category_page_index.get(field, 0) - 1)
+            focus_position = self.label_listbox.focus_position
+            self.build_label_list(restore_focus_position=focus_position)
+
+    def prev_group_page(self, button=None, data=None):
+        if data:
+            group_page_key, field = data
+            key = group_page_key.replace('-', '_')
+            current = getattr(self, f'group_page_index_{key}', 0)
+            setattr(self, f'group_page_index_{key}', max(0, current - 1))
+            focus_position = self.label_listbox.focus_position
+            self.build_label_list(restore_focus_position=focus_position)
+
+    def next_group_page(self, button=None, data=None):
+        if data:
+            group_page_key, field = data
+            key = group_page_key.replace('-', '_')
+            current = getattr(self, f'group_page_index_{key}', 0)
+            setattr(self, f'group_page_index_{key}', current + 1)
             focus_position = self.label_listbox.focus_position
             self.build_label_list(restore_focus_position=focus_position)
 
@@ -814,15 +911,21 @@ class CalibreUI:
                 label_text = base.get_label()
                 label_clean = label_text.strip().lstrip("•").split("(", 1)[0].strip().lower()
                 self.toggle_label(None, label_clean)
-                self.build_label_list(restore_focus_position=focus_position)
+                # Don't rebuild label list - toggle_label already updates the UI
         elif key in ('-', '+'):
             field = self.get_focused_category()
             if field:
                 focus_position = self.label_listbox.focus_position
+                # Simpler approach: determine which pagination to use based on field
+                # Check if there's a current page index for this field
+                current_page = self.category_page_index.get(field, 0)
+                
                 if key == '+':
                     self.next_category_page(field=field)
-                elif key == '-':
+                else:
                     self.prev_category_page(field=field)
+                
+                # Rebuild and restore focus
                 self.build_label_list(restore_focus_position=focus_position)
 
     def update_selected(self):
@@ -1379,7 +1482,7 @@ class CalibreUI:
         if key in self.expanded_groups and not has_member_selected:
             self._build_titles_with_group(field, group_name, members)
         else:
-            self.build_label_list()
+            # Don't rebuild label list - just update titles to preserve focus
             self.update_titles()
 
     def _build_titles_with_group(self, field, group_name, members):
