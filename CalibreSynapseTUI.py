@@ -467,37 +467,6 @@ class CalibreUI:
             except IndexError:
                 pass
 
-    def remove_category_widgets(self, field):
-        walker = self.label_listbox.body
-        new_body = []
-        skip = False
-        for widget in walker:
-            base = widget.base_widget if isinstance(widget, urwid.AttrMap) else widget
-            if isinstance(base, urwid.Button) and base.get_label().startswith(("▼", "▶")):
-                label = base.get_label()
-                match = re.match(r"[▶▼] (.+)", label)
-                if match and match.group(1) == field:
-                    skip = True
-                    new_body.append(widget)
-                    continue
-            if skip:
-                if isinstance(base, urwid.Divider):
-                    skip = False
-                continue
-            new_body.append(widget)
-        self.label_listbox.body[:] = new_body
-    def get_focused_category(self):
-        focus_widget = self.label_listbox.focus
-        base = focus_widget.base_widget
-        if hasattr(base, '_category'):
-            return base._category
-        if isinstance(base, urwid.Button):
-            label = base.get_label()
-            match = re.match(r"[▶▼] (.+)", label)
-            if match:
-                return match.group(1)
-        return self.last_active_category
-
     def toggle_category(self, button, field):
         self.expanded_categories[field] = not self.expanded_categories.get(field, False)
         if self.expanded_categories[field]:
@@ -781,7 +750,6 @@ class CalibreUI:
             ('weight', 1, urwid.LineBox(self.suggestion_listbox, title="📰 Book Feeds"))
         ])
 
-
         return urwid.Columns([
             ('weight', 1, urwid.LineBox(self.label_listbox, title="📂 Labels")),
             ('weight', 2, main_right)
@@ -967,7 +935,7 @@ class CalibreUI:
             label_section.append(cb)
         
         label_listbox = urwid.ListBox(urwid.SimpleFocusListWalker(label_section))
-        label_listbox_wrap = urwid.BoxAdapter(label_listbox, height=20)
+        label_listbox_wrap = urwid.BoxAdapter(label_listbox, height=25)
 
         # Add scroll indicators (ASCII arrows)
         scroll_indicator_top = urwid.Text("  ▲ Scroll Up/Down ▲", align='center')
@@ -1007,52 +975,97 @@ class CalibreUI:
         close_btn = urwid.Button("✖ Close")
         urwid.connect_signal(close_btn, 'click', close_dialog)
 
+        # Show existing groups in a separate column (right side)
+        existing_groups = list(groups.keys())
+        groups_section = []
+        
+        self.selected_group_in_dialog = getattr(self, 'selected_group_in_dialog', None)
+        
+        if existing_groups:
+            groups_section.append(urwid.Text("📂 Groups (click to select):"))
+            for gname in existing_groups:
+                members = groups[gname].get("members", [])
+                gtext = f"  📂 {gname} ({len(members)})"
+                
+                # Create a row with group name and buttons (only for selected)
+                if self.selected_group_in_dialog == gname:
+                    # Selected group - show with action buttons
+                    edit_btn = urwid.Button("Edit")
+                    rename_btn = urwid.Button("Rename")
+                    delete_btn = urwid.Button("🗑️")
+                    
+                    def make_edit_handler(fld, gnm):
+                        return lambda btn: self._show_edit_group(fld, gnm)
+                    def make_rename_handler(fld, gnm):
+                        return lambda btn: self._show_rename_dialog(fld, gnm)
+                    def make_delete_handler(fld, gnm):
+                        return lambda btn: self._show_delete_confirmation(fld, gnm)
+                    
+                    urwid.connect_signal(edit_btn, 'click', make_edit_handler(field, gname))
+                    urwid.connect_signal(rename_btn, 'click', make_rename_handler(field, gname))
+                    urwid.connect_signal(delete_btn, 'click', make_delete_handler(field, gname))
+                    
+                    group_row = urwid.Columns([
+                        ('weight', 1, urwid.Text(gtext)),
+                        ('pack', urwid.AttrMap(edit_btn, 'header', focus_map='reversed')),
+                        ('pack', urwid.AttrMap(rename_btn, 'header', focus_map='reversed')),
+                        ('pack', urwid.AttrMap(delete_btn, 'header', focus_map='reversed')),
+                    ])
+                    groups_section.append(urwid.AttrMap(group_row, 'selected', focus_map='reversed'))
+                else:
+                    # Not selected - just show group name (clickable)
+                    group_btn = urwid.Button(gtext)
+                    
+                    def make_select_handler(fld, gnm):
+                        return lambda btn: self._select_group_in_dialog(fld, gnm)
+                    urwid.connect_signal(group_btn, 'click', make_select_handler(field, gname))
+                    
+                    groups_section.append(urwid.AttrMap(group_btn, 'header', focus_map='reversed'))
+            
+            # Add placeholder if no group selected
+            if not self.selected_group_in_dialog:
+                groups_section.append(urwid.Text("  ← Select a group to edit"))
+        else:
+            groups_section.append(urwid.Text("  (no groups yet)"))
+        
+        groups_listbox = urwid.ListBox(urwid.SimpleFocusListWalker(groups_section))
+        groups_listbox_wrap = urwid.BoxAdapter(groups_listbox, height=25)
+        
+        # Footer with Create and Close buttons
         footer_section = []
         footer_section.append(urwid.Divider())
         
-        action_buttons = urwid.Columns([
+        create_close_buttons = urwid.Columns([
             urwid.AttrMap(create_btn, 'header', focus_map='reversed'),
             urwid.AttrMap(close_btn, 'header', focus_map='reversed'),
         ])
-        footer_section.append(action_buttons)
-
-        # Show existing groups
-        existing_groups = list(groups.keys())
-        if existing_groups:
-            footer_section.append(urwid.Divider())
-            footer_section.append(urwid.Text("Existing Groups:"))
-            for gname in existing_groups:
-                members = groups[gname].get("members", [])
-                gtext = f"  📂 {gname} ({len(members)} labels)"
-                
-                # Create buttons for rename and delete
-                rename_btn = urwid.Button("✏️ Rename")
-                delete_btn = urwid.Button("🗑️")
-                
-                # Create handlers with captured variables
-                def make_rename_handler(fld, gnm):
-                    return lambda btn: self._show_rename_dialog(fld, gnm)
-                def make_delete_handler(fld, gnm):
-                    return lambda btn: self._show_delete_confirmation(fld, gnm)
-                
-                urwid.connect_signal(rename_btn, 'click', make_rename_handler(field, gname))
-                urwid.connect_signal(delete_btn, 'click', make_delete_handler(field, gname))
-                
-                group_row = urwid.Columns([
-                    ('pack', urwid.Text(gtext)),
-                    ('pack', urwid.AttrMap(rename_btn, 'header', focus_map='reversed')),
-                    ('pack', urwid.AttrMap(delete_btn, 'header', focus_map='reversed')),
-                ])
-                footer_section.append(group_row)
+        footer_section.append(create_close_buttons)
+        
+        # Build left column (labels for creating new groups)
+        left_column = urwid.Pile([
+            ('pack', header_pile),
+            ('pack', scroll_indicator_top),
+            label_listbox_wrap,
+            ('pack', scroll_indicator_bottom),
+        ])
+        
+        # Build right column (existing groups)
+        right_column = urwid.Pile([
+            ('pack', urwid.Text(" ")),
+            ('pack', groups_listbox_wrap),
+        ])
+        
+        # Combine both columns
+        main_content = urwid.Columns([
+            ('weight', 1, left_column),
+            ('weight', 1, urwid.LineBox(right_column, title="📂 Groups")),
+        ])
         
         footer_pile = urwid.Pile(footer_section)
 
         # Combine all sections
         dialog_content = urwid.Pile([
-            ('pack', header_pile),
-            ('pack', scroll_indicator_top),
-            label_listbox_wrap,
-            ('pack', scroll_indicator_bottom),
+            main_content,
             footer_pile,
         ])
         
@@ -1064,11 +1077,20 @@ class CalibreUI:
             group_box,
             self.layout,
             align='center',
-            width=('relative', 70),
+            width=('relative', 95),
             valign='middle',
             height=('relative', 70)
         )
         self.loop.widget = self.group_overlay
+        
+        def handle_group_dialog_input(key):
+            if not isinstance(key, str):
+                return None
+            if key == 'esc':
+                self._close_group_dialog(None)
+            return None
+        
+        self.loop.unhandled_input = handle_group_dialog_input
         self.loop.draw_screen()
 
     def _select_group_field(self, button, field):
@@ -1088,6 +1110,13 @@ class CalibreUI:
         self.group_dialog_open = False
         self.group_overlay = None
         self.loop.widget = self.layout
+        self.loop.unhandled_input = self.handle_input
+        self.selected_group_in_dialog = None
+
+    def _select_group_in_dialog(self, field, group_name):
+        """Select a group in the dialog and refresh to show highlighting."""
+        self.selected_group_in_dialog = group_name
+        self._build_group_labels_view()
 
     def _show_delete_confirmation(self, field, group_name):
         """Show confirmation dialog before deleting a group."""
@@ -1144,6 +1173,127 @@ class CalibreUI:
         )
         self.loop.widget = self.group_overlay
         self.loop.draw_screen()
+
+    def _show_edit_group(self, field, group_name):
+        """Show dialog to edit a group's members (add/remove labels)."""
+        group_data = self.engine.label_groups.get(field, {}).get(group_name, {})
+        current_members = group_data.get("members", [])
+        
+        labels_info = self.engine.get_labels_for_field(field)
+        all_labels = sorted(labels_info.get("raw", []))
+        
+        all_group_members = set()
+        for gname, gdata in self.engine.label_groups.get(field, {}).items():
+            for member in gdata.get("members", []):
+                all_group_members.add(member.lower())
+        
+        available_labels = [l for l in all_labels if l.lower() not in all_group_members]
+        
+        header = urwid.Text(f"✏️ Edit Group: {group_name}", wrap='clip')
+        
+        # Left column: Current members + OK/Cancel (always visible)
+        left_section = []
+        left_section.append(urwid.Text("Current members (click to remove):"))
+        if current_members:
+            for member in sorted(current_members):
+                member_text = f"  • {member} ✕"
+                mbtn = urwid.Button(member_text)
+                
+                def make_remove_handler(f, g, m):
+                    return lambda btn: self._remove_group_member(f, g, m)
+                urwid.connect_signal(mbtn, 'click', make_remove_handler(field, group_name, member))
+                left_section.append(urwid.AttrMap(mbtn, 'header', focus_map='reversed'))
+        else:
+            left_section.append(urwid.Text("  (no members)"))
+        
+        left_section.append(urwid.Divider())
+        
+        def save_edits(btn):
+            new_members = list(current_members)
+            for label, cb in cb_widgets.items():
+                if cb.get_state() and label not in new_members:
+                    new_members.append(label)
+            
+            if field in self.engine.label_groups:
+                self.engine.label_groups[field][group_name] = {"members": new_members}
+                self.engine.save_label_groups()
+            
+            self._build_group_labels_view()
+            self.loop.draw_screen()
+        
+        def cancel_edit(btn):
+            self._build_group_labels_view()
+            self.loop.draw_screen()
+        
+        ok_btn = urwid.Button("✓ OK")
+        cancel_btn = urwid.Button("✖ Cancel")
+        
+        urwid.connect_signal(ok_btn, 'click', save_edits)
+        urwid.connect_signal(cancel_btn, 'click', cancel_edit)
+        
+        left_section.append(urwid.Columns([
+            urwid.AttrMap(ok_btn, 'header', focus_map='reversed'),
+            urwid.AttrMap(cancel_btn, 'header', focus_map='reversed'),
+        ]))
+        
+        left_pile = urwid.Pile(left_section)
+        
+        # Right column: Available labels to add
+        right_section = []
+        right_section.append(urwid.Text("Add new labels:"))
+        
+        cb_widgets = {}
+        for label in available_labels:
+            cb = urwid.CheckBox(label, state=False)
+            cb_widgets[label] = cb
+            right_section.append(cb)
+        
+        right_listbox = urwid.ListBox(urwid.SimpleFocusListWalker(right_section))
+        right_listbox_wrap = urwid.BoxAdapter(right_listbox, height=20)
+        
+        right_pile = urwid.Pile([
+            urwid.Text("Add new labels:"),
+            right_listbox_wrap,
+        ])
+        
+        # Combine both columns
+        main_content = urwid.Columns([
+            ('weight', 1, left_pile),
+            ('weight', 1, urwid.LineBox(right_pile, title="Available Labels")),
+        ])
+        
+        dialog_content = urwid.Pile([
+            ('pack', header),
+            ('pack', urwid.Divider()),
+            main_content,
+        ])
+        
+        filler = urwid.Filler(dialog_content, valign='top')
+        
+        edit_box = urwid.LineBox(filler, title="Edit Group")
+        
+        self.group_overlay = urwid.Overlay(
+            edit_box,
+            self.layout,
+            align='center',
+            width=('relative', 80),
+            valign='middle',
+            height=('relative', 60)
+        )
+        self.loop.widget = self.group_overlay
+        self.loop.draw_screen()
+
+    def _remove_group_member(self, field, group_name, member):
+        """Remove a member from a group and refresh the edit dialog."""
+        group_data = self.engine.label_groups.get(field, {}).get(group_name, {})
+        current_members = group_data.get("members", [])
+        
+        if member in current_members:
+            current_members.remove(member)
+            self.engine.label_groups[field][group_name] = {"members": current_members}
+            self.engine.save_label_groups()
+        
+        self._show_edit_group(field, group_name)
 
     def _show_rename_dialog(self, field, old_name):
         """Show dialog to rename a group."""
@@ -1219,19 +1369,16 @@ class CalibreUI:
         else:
             self.expanded_groups[key] = True
         
-        # Check if any labels from this group are selected
+        self.last_active_category = field
+        
         members = self.engine.get_group_members(field, group_name)
         member_keys = [m.lower() for m in members]
         
-        # Check if any group member is selected
         has_member_selected = any(mk in self.selected_labels for mk in member_keys)
         
-        # If no member is selected and we're expanding, rebuild titles with group query
         if key in self.expanded_groups and not has_member_selected:
-            # Show books from ALL group members (OR logic)
             self._build_titles_with_group(field, group_name, members)
         else:
-            # Normal behavior - update titles based on current selection
             self.build_label_list()
             self.update_titles()
 

@@ -246,5 +246,5 @@ Built with ❤️ using Python and [urwid](https://urwid.org/) for the terminal 
 ---
 
 <p align="center">
-  <img src="https://github.com/DaroHacka/CalibreSynapseTUI/raw/main/Screenshot%202025-10-03%20005521.png" alt="CalSynTUI+ Screenshot" width="600"/>
+  <img src="https://github.com/DaroHacka/CalibreSynapseTUI/raw/main/Screenshot 2026-02-27 231532.png" alt="CalSynTUI+ Screenshot" width="600"/>
 </p>
