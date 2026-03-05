@@ -156,22 +156,33 @@ class CalibreEngine:
         remaining_labels -= include_labels
 
         refinable_labels = []
-        series_tracker = defaultdict(set)
+        
+        # Track refinements per field: {field: {label: set of series_keys}}
+        field_series_tracker = defaultdict(lambda: defaultdict(set))
 
         for label in sorted(remaining_labels):
             for book_id, data in results.items():
                 series_name = data.get("series")
                 unique_key = series_name.lower() if series_name else book_id
-                if include_labels.union({label}).issubset(data["labels"]):
-                    series_tracker[label].add(unique_key)
+                
+                # Check if label exists in any field of this book
+                labels_by_field = data.get("labels_by_field", {})
+                for field, field_labels in labels_by_field.items():
+                    if label in field_labels and include_labels.issubset(data["labels"]):
+                        # This label exists in this specific field
+                        field_series_tracker[field][label].add(unique_key)
 
-        for label, series_set in series_tracker.items():
-            refined_count = len(series_set)
-            if 0 < refined_count < len(results):
-                refinable_labels.append((label, refined_count))
+        # Now process each field's tracker
+        for field, label_tracker in field_series_tracker.items():
+            for label, series_set in label_tracker.items():
+                refined_count = len(series_set)
+                # Only add if count is less than total results (meaning it's a valid refinement)
+                # and greater than 0
+                if 0 < refined_count < len(results):
+                    refinable_labels.append((label, refined_count, field))
 
         categorized = defaultdict(list)
-        for label, count in refinable_labels:
+        for label, count, field in refinable_labels:
             raw_category = self.label_to_category.get(label, "uncategorized")
             normalized_label = label
             if raw_category in self.parser:
@@ -179,7 +190,8 @@ class CalibreEngine:
                     if label in [v.lower() for v in variants] or label == canonical.lower():
                         normalized_label = canonical
                         break
-            categorized[raw_category].append((normalized_label, count))
+            # Only add to the field's category (not the label's inferred category)
+            categorized[field].append((normalized_label, count))
 
         for category in categorized:
             label_counter = defaultdict(int)
