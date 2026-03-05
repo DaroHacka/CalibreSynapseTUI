@@ -72,32 +72,83 @@ class CalibreEngine:
         return label
 
     def query(self, input_labels):
-        include_labels = {label.strip().lower() for label in input_labels if label.strip()}
+        # Support both old format (list of labels) and new format (dict {field: [labels]})
+        # New format enables field-aware matching
+        if isinstance(input_labels, dict):
+            # New format: {field: [labels]}
+            include_labels_by_field = {}
+            for field, labels in input_labels.items():
+                include_labels_by_field[field] = {label.strip().lower() for label in labels if label.strip()}
+            include_labels = set()
+            for labels in include_labels_by_field.values():
+                include_labels.update(labels)
+        else:
+            # Old format: list of labels (field-agnostic - legacy behavior)
+            include_labels = {label.strip().lower() for label in input_labels if label.strip()}
+            include_labels_by_field = None
+        
         if not include_labels:
             return {"books": {}, "refinable_labels": {}, "query_labels": [], "refinement_closed": True}
 
         results = {}
         for book_id, entry in self.label_map.items():
-            label_set = set()
-            for field, field_labels in entry.get("labels_by_field", {}).items():
-                for label in field_labels:
-                    normalized = self.normalize_label(field, label)
-                    label_set.add(normalized.strip().lower())
+            # Build label sets per field for field-aware matching
+            labels_by_field = entry.get("labels_by_field", {})
+            
+            if include_labels_by_field is not None:
+                # Field-aware matching: check each field's labels separately
+                field_match = True
+                for field, required_labels in include_labels_by_field.items():
+                    if not required_labels:
+                        continue
+                    book_field_labels = set()
+                    for label in labels_by_field.get(field, []):
+                        normalized = self.normalize_label(field, label)
+                        book_field_labels.add(normalized.strip().lower())
+                    if not required_labels.issubset(book_field_labels):
+                        field_match = False
+                        break
+                
+                if field_match:
+                    normalized_by_field = {}
+                    for field, field_labels in labels_by_field.items():
+                        normalized_by_field[field] = [
+                            self.normalize_label(field, label).strip().lower()
+                            for label in field_labels
+                        ]
+                    # Build overall label set for refinement
+                    label_set = set()
+                    for field, field_labels in normalized_by_field.items():
+                        label_set.update(field_labels)
 
-            if include_labels.issubset(label_set):
-                normalized_by_field = {}
-                for field, field_labels in entry.get("labels_by_field", {}).items():
-                    normalized_by_field[field] = [
-                        self.normalize_label(field, label).strip().lower()
-                        for label in field_labels
-                    ]
+                    results[book_id] = {
+                        "author": entry.get("author", "Unknown"),
+                        "labels": label_set,
+                        "series": entry.get("series"),
+                        "labels_by_field": normalized_by_field
+                    }
+            else:
+                # Legacy field-agnostic matching
+                label_set = set()
+                for field, field_labels in labels_by_field.items():
+                    for label in field_labels:
+                        normalized = self.normalize_label(field, label)
+                        label_set.add(normalized.strip().lower())
 
-                results[book_id] = {
-                    "author": entry.get("author", "Unknown"),
-                    "labels": label_set,
-                    "series": entry.get("series"),
-                    "labels_by_field": normalized_by_field
-                }
+                if include_labels.issubset(label_set):
+                    normalized_by_field = {}
+                    for field, field_labels in labels_by_field.items():
+                        normalized_by_field[field] = [
+                            self.normalize_label(field, label).strip().lower()
+                            for label in field_labels
+                        ]
+
+                    results[book_id] = {
+                        "author": entry.get("author", "Unknown"),
+                        "labels": label_set,
+                        "series": entry.get("series"),
+                        "labels_by_field": normalized_by_field
+                    }
 
         remaining_labels = set()
         for data in results.values():

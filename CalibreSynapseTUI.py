@@ -65,7 +65,7 @@ class CalibreUI:
         self._refinement_cache = {}
         self._filtered_label_cache = {}
 
-        self.selected_labels = set()
+        self.selected_labels = set()  # stores (label, field) tuples
         self.expanded_categories = {}
         self.search_query = ""
         self.current_theme = "deepsea"
@@ -226,14 +226,23 @@ class CalibreUI:
         return pages
 
     def get_filtered_labels(self, field, split_labels, refinement):
-        combo_key = ",".join(sorted(self.selected_labels))
+        # Build combo_key from (label, field) tuples - format: "label1:field1,label2:field2"
+        label_field_strings = [f"{label}:{fld}" for label, fld in sorted(self.selected_labels)]
+        combo_key = ",".join(label_field_strings)
         cache_key = (field, combo_key)
         if cache_key in self._filtered_label_cache:
             return self._filtered_label_cache[cache_key]
 
+        # Pass field-aware labels to query
         result = self.usage_tracker.get(combo_key)
         if not result:
-            result = self.engine.query(list(self.selected_labels))
+            # Convert tuple set to dict for query: {field: [labels]}
+            labels_by_field_for_query = {}
+            for label, fld in self.selected_labels:
+                if fld not in labels_by_field_for_query:
+                    labels_by_field_for_query[fld] = []
+                labels_by_field_for_query[fld].append(label)
+            result = self.engine.query(labels_by_field_for_query)
             self.usage_tracker.store(combo_key, result)
 
         books = result.get("books", {})
@@ -248,7 +257,8 @@ class CalibreUI:
         filtered = []
         for label in sorted(split_labels):
             key = label.lower()
-            if key in self.selected_labels:
+            # Check if this specific (label, field) tuple is selected
+            if (key, field) in self.selected_labels:
                 filtered.append(label)
                 continue
             if self.search_query and self.search_query not in key:
@@ -358,7 +368,8 @@ class CalibreUI:
 
         if refinement is None:
             if self.selected_labels:
-                combo_key = ",".join(sorted(self.selected_labels))
+                label_field_strings = [f"{label}:{fld}" for label, fld in sorted(self.selected_labels)]
+                combo_key = ",".join(label_field_strings)
                 refinement = self._refinement_cache.get(combo_key, {})
             else:
                 refinement = {}
@@ -366,7 +377,8 @@ class CalibreUI:
         # Get filtered book IDs from cached query result
         filtered_book_ids = None
         if self.selected_labels:
-            combo_key = ",".join(sorted(self.selected_labels))
+            label_field_strings = [f"{label}:{fld}" for label, fld in sorted(self.selected_labels)]
+            combo_key = ",".join(label_field_strings)
             cached = self.usage_tracker.get(combo_key)
             if cached:
                 filtered_book_ids = set(cached.get("books", {}).keys())
@@ -425,6 +437,11 @@ class CalibreUI:
 
                 group_toggle = "▼" if is_group_expanded else "📂"
                 total_count = sum(label_counts.get(m.lower(), 0) for m in members)
+                
+                # Skip groups with no matching books
+                if total_count == 0:
+                    continue
+                
                 group_text = f"  {group_toggle} {group_name} ({total_count})"
 
                 group_btn = urwid.Button(group_text)
@@ -436,13 +453,13 @@ class CalibreUI:
                 if is_group_expanded:
                     for member in members:
                         member_key = member.lower()
-                        is_selected = member_key in self.selected_labels
+                        is_selected = (member_key, field) in self.selected_labels
                         count = label_counts.get(member_key, 0)
                         count_str = f" ({count})" if count > 0 else ""
                         member_text = f"    • {member}{count_str}"
                         mbtn = urwid.Button(member_text)
                         mbtn._category = field
-                        urwid.connect_signal(mbtn, 'click', self.toggle_label, user_arg=member_key)
+                        urwid.connect_signal(mbtn, 'click', self.toggle_label, user_arg=(member_key, field))
                         mstyle = 'selected' if is_selected else 'raw'
                         walker.append(urwid.AttrMap(mbtn, mstyle, focus_map='reversed'))
             
@@ -478,13 +495,13 @@ class CalibreUI:
 
             for label in current_page:
                 key = label.lower()
-                is_selected = key in self.selected_labels
+                is_selected = (key, field) in self.selected_labels
                 count = label_counts.get(key, 0)
                 count_str = f" ({count})" if count > 0 else ""
                 label_text = f"  • {label}{count_str}"
                 btn = urwid.Button(label_text)
                 btn._category = field
-                urwid.connect_signal(btn, 'click', self.toggle_label, user_arg=key)
+                urwid.connect_signal(btn, 'click', self.toggle_label, user_arg=(key, field))
                 style = 'selected' if is_selected else 'raw'
                 walker.append(urwid.AttrMap(btn, style, focus_map='reversed'))
             
@@ -586,23 +603,47 @@ class CalibreUI:
             focus_position = self.label_listbox.focus_position
             self.build_label_list(restore_focus_position=focus_position)
 
-    def toggle_label(self, button, label):
-        if label in self.selected_labels:
-            self.selected_labels.remove(label)
-            if label in self.selected_labels_order:
-                self.selected_labels_order.remove(label)
+    def toggle_label(self, button, label_or_tuple):
+        # Handle tuple from user_arg - urwid passes tuple as single arg
+        if isinstance(label_or_tuple, tuple):
+            label, field = label_or_tuple
         else:
-            self.selected_labels.add(label)
-            if label not in self.selected_labels_order:
-                self.selected_labels_order.append(label)
+            # Legacy format or just label name
+            label = label_or_tuple
+            field = None
+        label_field_tuple = (label, field)
+        if label_field_tuple in self.selected_labels:
+            self.selected_labels.remove(label_field_tuple)
+            if label_field_tuple in self.selected_labels_order:
+                self.selected_labels_order.remove(label_field_tuple)
+        else:
+            self.selected_labels.add(label_field_tuple)
+            if label_field_tuple not in self.selected_labels_order:
+                self.selected_labels_order.append(label_field_tuple)
+        
+        # Save focus position to restore after rebuilding UI
+        try:
+            focus_position = self.label_listbox.focus_position
+        except (IndexError, AttributeError):
+            focus_position = None
+        
         self.update_selected()
-        self.update_titles()
+        self.update_titles(restore_focus_position=focus_position)
 
-    def select_from_search(self, button, label):
+    def select_from_search(self, button, label_or_tuple):
         """When user selects a label from search, add it and restore normal UI."""
+        # Handle tuple from user_arg - urwid passes tuple as single arg
+        if isinstance(label_or_tuple, tuple):
+            label, field = label_or_tuple
+        else:
+            label = label_or_tuple
+            field = None
         self.search_query = ""
         self.search_edit.set_edit_text("")
-        self.selected_labels.add(label)
+        label_field_tuple = (label, field)
+        self.selected_labels.add(label_field_tuple)
+        if label_field_tuple not in self.selected_labels_order:
+            self.selected_labels_order.append(label_field_tuple)
         self.in_search_mode = False  # <--- Restore normal list
         self.update_selected()
         self.update_titles()
@@ -629,7 +670,7 @@ class CalibreUI:
             for label, field in all_label_results:
                 label_text = f"• {label} ({field})"
                 btn = urwid.Button(label_text)
-                urwid.connect_signal(btn, 'click', self.select_from_search, user_arg=label.lower())
+                urwid.connect_signal(btn, 'click', self.select_from_search, user_arg=(label.lower(), field))
                 self.label_listbox.body.append(urwid.AttrMap(btn, 'raw', focus_map='reversed'))
         else:
             self.label_listbox.body[:] = [urwid.Text(f"🔍 No results for '{query}'.")]
@@ -642,7 +683,7 @@ class CalibreUI:
         for i in range(0, len(entries), page_size):
             yield entries[i:i + page_size]
 
-    def update_titles(self):
+    def update_titles(self, restore_focus_position=None):
         walker = self.title_listbox.body
         walker.clear()
 
@@ -651,10 +692,12 @@ class CalibreUI:
 
         if not self.selected_labels or not self.engine:
             walker.append(urwid.Text("📘 Select a label to view matching titles."))
-            self.build_label_list()
+            self.build_label_list(restore_focus_position=restore_focus_position)
             return
 
-        combo_key = ",".join(sorted(self.selected_labels))
+        # Build combo_key with field info: "label1:field1,label2:field2"
+        label_field_strings = [f"{label}:{fld}" for label, fld in sorted(self.selected_labels)]
+        combo_key = ",".join(label_field_strings)
         cached = self.usage_tracker.get(combo_key)
 
         if cached:
@@ -662,12 +705,18 @@ class CalibreUI:
             result = cached
         else:
             print(f"🔄 Live query for {combo_key}")
-            result = self.engine.query(list(self.selected_labels))
+            # Convert tuple set to dict for query: {field: [labels]}
+            labels_by_field_for_query = {}
+            for label, fld in self.selected_labels:
+                if fld not in labels_by_field_for_query:
+                    labels_by_field_for_query[fld] = []
+                labels_by_field_for_query[fld].append(label)
+            result = self.engine.query(labels_by_field_for_query)
             self.usage_tracker.store(combo_key, result)
 
         refinement = result.get("refinable_labels", {})
         self._refinement_cache[combo_key] = refinement
-        self.build_label_list(refinement=refinement)
+        self.build_label_list(refinement=refinement, restore_focus_position=restore_focus_position)
 
         books = result.get("books", {})
         seen_series = set()
@@ -910,7 +959,8 @@ class CalibreUI:
             if hasattr(base, '_category'):
                 label_text = base.get_label()
                 label_clean = label_text.strip().lstrip("•").split("(", 1)[0].strip().lower()
-                self.toggle_label(None, label_clean)
+                field = base._category
+                self.toggle_label(None, label_clean, field)
                 # Don't rebuild label list - toggle_label already updates the UI
         elif key in ('-', '+'):
             field = self.get_focused_category()
@@ -930,7 +980,9 @@ class CalibreUI:
 
     def update_selected(self):
         if self.selected_labels:
-            self.selected_text.set_text("🎯 Selected Labels: " + ", ".join(sorted(self.selected_labels)))
+            # Extract just the label names (not the field) for display
+            label_names = [label for label, field in sorted(self.selected_labels)]
+            self.selected_text.set_text("🎯 Selected Labels: " + ", ".join(label_names))
         else:
             self.selected_text.set_text("📖 Welcome to CalibreSynapse — where genre meets depth.")
 
@@ -1477,7 +1529,8 @@ class CalibreUI:
         members = self.engine.get_group_members(field, group_name)
         member_keys = [m.lower() for m in members]
         
-        has_member_selected = any(mk in self.selected_labels for mk in member_keys)
+        # Check if any member is selected in THIS field
+        has_member_selected = any((mk, field) in self.selected_labels for mk in member_keys)
         
         if key in self.expanded_groups and not has_member_selected:
             self._build_titles_with_group(field, group_name, members)
@@ -1496,16 +1549,38 @@ class CalibreUI:
             self.build_label_list()
             return
         
-        # Collect ALL books that have ANY of the group member labels
-        # Use OR logic: book matches if it has ANY of the member labels
-        all_group_books = set()
+        # Build labels by field from current selections (excluding this group)
+        # to filter books that match all other selections first
         group_member_set = set(m.lower() for m in members)
         
-        for book_id, info in self.engine.label_map.items():
+        # Get base filtered books from other selections (not this group's members)
+        other_labels_by_field = {}
+        for label, fld in self.selected_labels:
+            # Skip labels from this field (the group we're expanding)
+            if fld == field and label.lower() in group_member_set:
+                continue
+            if fld not in other_labels_by_field:
+                other_labels_by_field[fld] = []
+            other_labels_by_field[fld].append(label)
+        
+        # If there are other selections, query for them first
+        if other_labels_by_field:
+            result = self.engine.query(other_labels_by_field)
+            base_book_ids = set(result.get("books", {}).keys())
+        else:
+            # No other selections, start from all books
+            base_book_ids = set(self.engine.label_map.keys())
+        
+        # Now filter base books by group member labels (OR logic within this field)
+        all_group_books = set()
+        for book_id in base_book_ids:
+            info = self.engine.label_map.get(book_id)
+            if not info:
+                continue
             labels_by_field = info.get("labels_by_field", {})
             field_labels = labels_by_field.get(field, [])
             
-            # Check if ANY of the member labels match
+            # Check if ANY of the group member labels match
             for label in field_labels:
                 if label.lower() in group_member_set:
                     all_group_books.add(book_id)
@@ -1547,9 +1622,13 @@ class CalibreUI:
                 if norm_series not in series_entries:
                     series_entries[norm_series] = []
                 series_entries[norm_series].append(volume_entry)
+                # Also populate last_query_series_map for open_series_popup to work
+                self.last_query_series_map.setdefault(norm_series, []).append(volume_entry)
             else:
                 # This is a standalone book
                 standalone_entries.append(volume_entry)
+                # Also populate last_query_series_map for open_volume_info to work
+                self.last_query_series_map.setdefault(book_id, []).append(volume_entry)
         
         # First, display standalone books
         for volume_entry in standalone_entries:
