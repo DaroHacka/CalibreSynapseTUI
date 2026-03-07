@@ -152,3 +152,14 @@ print(f"\n📈 Label frequency map saved to: {FREQUENCY_MAP_PATH}")
 with open(FLAT_INDEX_PATH, "w", encoding="utf-8") as f:
     json.dump(flat_label_index, f, indent=2, ensure_ascii=False)
 print(f"\n🔁 Flat label index saved to: {FLAT_INDEX_PATH}")
+
+# === SAVE METADATA TIMESTAMP ===
+import time
+METADATA_TIMESTAMP_PATH = os.path.join(os.path.dirname(OUTPUT_LABEL_MAP), "metadata_timestamp.json")
+timestamp_data = {
+    "last_updated": time.time(),
+    "timestamp_readable": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+}
+with open(METADATA_TIMESTAMP_PATH, "w", encoding="utf-8") as f:
+    json.dump(timestamp_data, f, indent=2, ensure_ascii=False)
+print(f"\n⏰ Metadata timestamp saved to: {METADATA_TIMESTAMP_PATH}")

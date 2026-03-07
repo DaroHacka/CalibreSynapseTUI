@@ -59,7 +59,9 @@ class CalibreUI:
             self.engine = None
 
         self.in_search_mode = False
-        self.usage_tracker = ComboUsageTracker(os.path.join(SCRIPT_DIR, "combo_usage_cache.json"))
+        self.cache_path = os.path.join(SCRIPT_DIR, "combo_usage_cache.json")
+        self._invalidate_stale_cache()  # Check if cache is stale before loading
+        self.usage_tracker = ComboUsageTracker(self.cache_path)
         self._split_cache = {}
         self._page_cache = {}
         self._refinement_cache = {}
@@ -178,6 +180,33 @@ class CalibreUI:
 
         self.build_label_list()
         self.update_titles()
+
+    def _invalidate_stale_cache(self):
+        """Check if cache is older than metadata timestamp, and delete if stale."""
+        import time
+        cache_path = self.cache_path
+        metadata_timestamp_path = os.path.join(SCRIPT_DIR, "metadata_timestamp.json")
+        
+        # If no cache exists, nothing to invalidate
+        if not os.path.exists(cache_path):
+            return
+        
+        # If no metadata timestamp exists (old setup), keep cache
+        if not os.path.exists(metadata_timestamp_path):
+            return
+        
+        try:
+            with open(metadata_timestamp_path, "r", encoding="utf-8") as f:
+                timestamp_data = json.load(f)
+                metadata_time = timestamp_data.get("last_updated", 0)
+            
+            cache_mtime = os.path.getmtime(cache_path)
+            
+            if cache_mtime < metadata_time:
+                os.remove(cache_path)
+                print(f"🔄 Cache invalidated - metadata is newer, cache will be rebuilt on first query")
+        except Exception as e:
+            print(f"⚠️ Error checking cache timestamp: {e}")
 
     def undo_last_label(self, button):
         if self.selected_labels_order:
