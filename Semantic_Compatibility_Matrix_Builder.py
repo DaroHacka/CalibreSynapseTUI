@@ -5,11 +5,14 @@ from collections import defaultdict
 
 # === CONFIGURATION ===
 CALIBRE_DB_PATH = "/srv/dev-disk-by-uuid-2856cdb9-5991-47dc-886b-1be20f8c2993/ArkVault/Calibre Library/metadata.db"
-OUTPUT_LABEL_MAP = "/home/dan/CalibreSynapse/CalibreSynapseTUI/semantic_label_map.json"
-DYNAMIC_VOCAB_PATH = "/home/dan/CalibreSynapse/CalibreSynapseTUI/dynamic_vocabulary.json"
-VOCABULARY_PARSER_PATH = "/home/dan/CalibreSynapse/CalibreSynapseTUI/vocabulary_parser.json"
-FREQUENCY_MAP_PATH = "/home/dan/CalibreSynapse/CalibreSynapseTUI/label_frequency.json"
-FLAT_INDEX_PATH = "/home/dan/CalibreSynapse/CalibreSynapseTUI/flat_label_index.json"
+
+# Use relative paths for portability
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_LABEL_MAP = os.path.join(SCRIPT_DIR, "semantic_label_map.json")
+DYNAMIC_VOCAB_PATH = os.path.join(SCRIPT_DIR, "dynamic_vocabulary.json")
+VOCABULARY_PARSER_PATH = os.path.join(SCRIPT_DIR, "vocabulary_parser.json")
+FREQUENCY_MAP_PATH = os.path.join(SCRIPT_DIR, "label_frequency.json")
+FLAT_INDEX_PATH = os.path.join(SCRIPT_DIR, "flat_label_index.json")
 
 # === ALLOWED FIELDS ===
 ALLOWED_FIELDS = {
