@@ -63,14 +63,19 @@ print(f"🧠 Using filtered custom fields: {list(field_map.keys())}")
 print(f"🧠 Including core fields: {list(CORE_FIELDS & ALLOWED_FIELDS)}\n")
 
 # === FETCH BOOKS ===
-cursor.execute("SELECT id, title, path FROM books")
+cursor.execute("""
+    SELECT b.id, b.title, b.path, c.text
+    FROM books b
+    LEFT JOIN comments c ON b.id = c.book
+""")
 books = cursor.fetchall()
 print(f"🔍 Scanning {len(books)} books...\n")
 
-for idx, (book_id, title, path) in enumerate(books, start=1):
+for idx, (book_id, title, path, comments) in enumerate(books, start=1):
     book_labels = {}
     author_folder = path.split(os.sep)[0]
     series_name = None
+    book_description = comments if comments else ""  # Store description/comments
 
     # === Fetch Series Name ===
     if "series" in ALLOWED_FIELDS:
@@ -129,7 +134,8 @@ for idx, (book_id, title, path) in enumerate(books, start=1):
             "title": title.strip(),
             "author": author_folder,
             "labels_by_field": {k: sorted(v) for k, v in book_labels.items()},
-            "series": series_name
+            "series": series_name,
+            "description": book_description
         }
         print(f"[{idx}/{len(books)}] ✅ {book_id} — Author: {author_folder} — {sum(len(v) for v in book_labels.values())} labels collected")
 
