@@ -94,7 +94,8 @@ class CalibreUI:
                 ('raw', 'dark gray', ''),
                 ('title', 'light blue', ''),
                 ('series', 'white', ''),
-                ('logo', 'light magenta,bold', '')
+                ('logo', 'light magenta,bold', ''),
+                ('greyed_out', 'dark gray', ''),
             ],
             "sunset": [
                 ('header', 'dark red,bold', ''),
@@ -102,7 +103,8 @@ class CalibreUI:
                 ('raw', 'light gray', ''),
                 ('title', 'light magenta', ''),
                 ('series', 'light green', ''),
-                ('logo', 'light red,bold', '')
+                ('logo', 'light red,bold', ''),
+                ('greyed_out', 'dark gray', ''),
             ]
         }
 
@@ -380,7 +382,7 @@ class CalibreUI:
 
         return counts
 
-    def build_label_list(self, restore_focus_position=None, refinement=None):
+    def build_label_list(self, restore_focus_position=None, refinement=None, filtered_book_ids=None):
         """Normal category/label list, unless in search mode."""
         if self.in_search_mode:
             # Don't build the normal list if in search mode
@@ -403,42 +405,65 @@ class CalibreUI:
             else:
                 refinement = {}
 
-        # Get filtered book IDs from cached query result
-        filtered_book_ids = None
-        if self.selected_labels:
-            label_field_strings = [f"{label}:{fld}" for label, fld in sorted(self.selected_labels)]
-            combo_key = ",".join(label_field_strings)
-            cached = self.usage_tracker.get(combo_key)
-            if cached:
-                filtered_book_ids = set(cached.get("books", {}).keys())
+        # Get filtered book IDs from cached query result or use provided parameter
+        if filtered_book_ids is None:
+            if self.selected_labels:
+                label_field_strings = [f"{label}:{fld}" for label, fld in sorted(self.selected_labels)]
+                combo_key = ",".join(label_field_strings)
+                cached = self.usage_tracker.get(combo_key)
+                if cached:
+                    filtered_book_ids = set(cached.get("books", {}).keys())
         
         # Keep alphabetical order - don't reorder fields
+        
+        # Check if any labels are selected (for grey-out logic)
+        has_selections = bool(self.selected_labels)
         
         for field in all_fields:
             is_expanded = self.expanded_categories.get(field, False)
             toggle = "▼" if is_expanded else "▶"
-            header_btn = urwid.Button(f"{toggle} {field}")
-            urwid.connect_signal(header_btn, 'click', self.toggle_category, user_arg=field)
-            walker.append(urwid.AttrMap(header_btn, 'header'))
-
-            if not is_expanded:
-                continue
-
-            self.last_active_category = field
+            
+            # Pre-compute label counts for ALL fields (not just expanded)
+            # This is needed to grey-out fields with 0 combinations BEFORE clicking
+            temp_refinement = refinement if refinement else {}
             labels_info = self.engine.get_labels_for_field(field)
             raw = labels_info.get("raw", [])
             split_labels = self.get_split_labels(field, raw)
-
             groups = self.engine.get_groups_for_field(field)
             group_member_set = set()
             for group_data in groups.values():
                 for member in group_data.get("members", []):
                     group_member_set.add(member.lower())
+            temp_filtered_labels = self.get_filtered_labels(field, split_labels, temp_refinement)
+            temp_filtered_labels = [l for l in temp_filtered_labels if l.lower() not in group_member_set]
+            temp_label_counts = self.compute_label_counts(field, temp_refinement, filtered_book_ids)
+            total_field_count = sum(temp_label_counts.values())
+            
+            # Grey out field if has selections and 0 combinations
+            should_grey_out = has_selections and total_field_count == 0
+            
+            if should_grey_out:
+                # Grey out - show as disabled, non-clickable
+                header_btn = urwid.Text(f"  {toggle} {field} (0)")
+                walker.append(urwid.AttrMap(header_btn, 'greyed_out'))
+            else:
+                header_btn = urwid.Button(f"{toggle} {field}")
+                urwid.connect_signal(header_btn, 'click', self.toggle_category, user_arg=field)
+                walker.append(urwid.AttrMap(header_btn, 'header'))
 
-            filtered_labels = self.get_filtered_labels(field, split_labels, refinement)
-            filtered_labels = [l for l in filtered_labels if l.lower() not in group_member_set]
+            if not is_expanded:
+                continue
+            
+            # Skip entire field content if greyed out (0 combinations)
+            if should_grey_out:
+                continue
 
-            label_counts = self.compute_label_counts(field, refinement, filtered_book_ids)
+            self.last_active_category = field
+            
+            # Reuse the values already computed for grey-out check
+            # (labels_info, raw, split_labels, groups, group_member_set, filtered_labels, label_counts)
+            filtered_labels = temp_filtered_labels
+            label_counts = temp_label_counts
             
             # Group pagination (15 per page)
             group_list = sorted(groups.keys())
@@ -484,7 +509,12 @@ class CalibreUI:
                         member_key = member.lower()
                         is_selected = (member_key, field) in self.selected_labels
                         count = label_counts.get(member_key, 0)
-                        count_str = f" ({count})" if count > 0 else ""
+                        
+                        # Skip labels with 0 count (don't show them at all)
+                        if count == 0:
+                            continue
+                        
+                        count_str = f" ({count})"
                         member_text = f"    • {member}{count_str}"
                         mbtn = urwid.Button(member_text)
                         mbtn._category = field
@@ -1567,6 +1597,27 @@ class CalibreUI:
             # Don't rebuild label list - just update titles to preserve focus
             self.update_titles()
 
+    def _get_books_for_labels(self, labels_by_field):
+        """Get book IDs matching any labels in the dict using inverted index. O(1) lookup."""
+        result_books = None
+        for field, labels in labels_by_field.items():
+            field_books = set()
+            for label in labels:
+                key = (field, label.lower())
+                label_books = self.engine.label_to_books.get(key, set())
+                field_books |= label_books
+            
+            if result_books is None:
+                result_books = field_books
+            else:
+                # Intersection: books must match labels in this field AND previous fields
+                result_books &= field_books
+            
+            if not result_books:
+                break
+        
+        return result_books if result_books else set()
+
     def _build_titles_with_group(self, field, group_name, members):
         """Build titles showing books from ALL group members (OR logic)."""
         walker = self.title_listbox.body
@@ -1592,28 +1643,36 @@ class CalibreUI:
                 other_labels_by_field[fld] = []
             other_labels_by_field[fld].append(label)
         
-        # If there are other selections, query for them first
-        if other_labels_by_field:
-            result = self.engine.query(other_labels_by_field)
-            base_book_ids = set(result.get("books", {}).keys())
-        else:
-            # No other selections, start from all books
-            base_book_ids = set(self.engine.label_map.keys())
+        # Check cache for this group first
+        group_cache_key = f"GROUP:{field}:{group_name}"
+        cached_group_books = self.usage_tracker.get(group_cache_key)
         
-        # Now filter base books by group member labels (OR logic within this field)
-        all_group_books = set()
-        for book_id in base_book_ids:
-            info = self.engine.label_map.get(book_id)
-            if not info:
-                continue
-            labels_by_field = info.get("labels_by_field", {})
-            field_labels = labels_by_field.get(field, [])
+        if cached_group_books:
+            # Use cached group books
+            cached_book_ids = set(cached_group_books.get("books", {}).keys())
             
-            # Check if ANY of the group member labels match
-            for label in field_labels:
-                if label.lower() in group_member_set:
-                    all_group_books.add(book_id)
-                    break
+            # If there are other selections, intersect with them using inverted index
+            if other_labels_by_field:
+                base_book_ids = self._get_books_for_labels(other_labels_by_field)
+                all_group_books = cached_book_ids & base_book_ids
+            else:
+                all_group_books = cached_book_ids
+        else:
+            # Use inverted index to get books matching group members
+            all_group_books = set()
+            for member in members:
+                key = (field, member.lower())
+                member_books = self.engine.label_to_books.get(key, set())
+                all_group_books |= member_books
+            
+            # If there are other selections, intersect with them using inverted index
+            if other_labels_by_field:
+                base_book_ids = self._get_books_for_labels(other_labels_by_field)
+                all_group_books &= base_book_ids
+            
+            # Store in cache for next time
+            cache_result = {"books": {bid: {"labels": set()} for bid in all_group_books}}
+            self.usage_tracker.store(group_cache_key, cache_result)
         
         # Get the books data
         books = {}
@@ -1684,7 +1743,7 @@ class CalibreUI:
         if not books:
             walker.append(urwid.Text("📘 No books found in this group."))
         
-        self.build_label_list()
+        self.build_label_list(filtered_book_ids=all_group_books)
 
     def refresh_suggestions(self):
         if self.feeds_enabled:

@@ -1,4 +1,5 @@
 import json
+import os
 from collections import defaultdict
 
 class CalibreEngine:
@@ -7,6 +8,10 @@ class CalibreEngine:
         self.dynamic_vocab = self._load_json(vocab_path)
         self.parser = self._load_json(parser_path)
         self.label_groups_path = label_groups_path  # Store the path for saving later
+        
+        # Store paths for index rebuild check
+        self._label_map_path = label_map_path
+        self._vocab_path = vocab_path
         
         try:
             with open(label_groups_path, "r", encoding="utf-8") as f:
@@ -17,6 +22,71 @@ class CalibreEngine:
         self.normalized_parser_labels = self._build_normalized_parser_labels()
         self.label_to_category = self._build_reverse_label_lookup()
         self._build_group_member_lookup()
+        self._build_label_to_books_index()
+    
+    def _get_file_mtime(self, path):
+        """Get file modification time, return 0 if file doesn't exist."""
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            return 0
+    
+    def _should_rebuild_index(self):
+        """Check if index needs rebuilding based on file timestamps."""
+        index_timestamp_file = "index_timestamp.json"
+        
+        # Get current max mtime from our source files
+        current_mtime = max(
+            self._get_file_mtime(self._label_map_path),
+            self._get_file_mtime(self._vocab_path)
+        )
+        
+        # Load last build timestamp
+        try:
+            with open(index_timestamp_file, "r") as f:
+                last_mtime = json.load(f).get("last_mtime", 0)
+        except (FileNotFoundError, json.JSONDecodeError):
+            last_mtime = 0
+        
+        # Rebuild if current mtime is newer
+        return current_mtime > last_mtime
+    
+    def _save_index_timestamp(self):
+        """Save the current timestamp after building index."""
+        index_timestamp_file = "index_timestamp.json"
+        
+        current_mtime = max(
+            self._get_file_mtime(self._label_map_path),
+            self._get_file_mtime(self._vocab_path)
+        )
+        
+        with open(index_timestamp_file, "w") as f:
+            json.dump({"last_mtime": current_mtime}, f)
+    
+    def _build_label_to_books_index(self):
+        """Build inverted index: (field, label) -> set of book IDs. For O(1) lookups."""
+        # Check if we need to rebuild (skip if no changes)
+        if not self._should_rebuild_index():
+            # Index already exists from previous build, skip rebuilding
+            # But ensure the index exists (for first run or after reset)
+            if not hasattr(self, 'label_to_books') or not self.label_to_books:
+                self._do_build_index()
+            return
+        
+        self._do_build_index()
+        self._save_index_timestamp()
+    
+    def _do_build_index(self):
+        """Actually build the inverted index."""
+        self.label_to_books = {}
+        for book_id, info in self.label_map.items():
+            labels_by_field = info.get("labels_by_field", {})
+            for field, labels in labels_by_field.items():
+                for label in labels:
+                    key = (field, label.strip().lower())
+                    if key not in self.label_to_books:
+                        self.label_to_books[key] = set()
+                    self.label_to_books[key].add(book_id)
 
     def _build_group_member_lookup(self):
         self.group_member_lookup = {}
