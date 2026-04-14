@@ -802,10 +802,10 @@ class CalibreUI:
             desc = info.get("description") or info.get("summary") or info.get("comments") or info.get("annotation") or ""
             volume_entry["description"] = desc
 
-            if norm_series:
+            if norm_series and raw_series.lower() != "standalone novels":
                 self.last_query_series_map.setdefault(norm_series, []).append(volume_entry)
             else:
-                # for standalone books, keep them keyed by book_id so open_volume_info can find them if clicked
+                # for standalone books (or "standalone novels"), keep them keyed by book_id so open_volume_info can find them if clicked
                 self.last_query_series_map.setdefault(book_id, []).append(volume_entry)
 
         # Now display entries: one row per series (clickable) and per standalone book
@@ -815,7 +815,7 @@ class CalibreUI:
 
             title = self.engine.label_map.get(book_id, {}).get("title", "").strip()
             raw_series = (data.get("series") or "").strip()
-            norm_series = raw_series.lower() if raw_series else None
+            norm_series = raw_series.lower() if raw_series and raw_series.lower() != "standalone novels" else None
             author = data.get("author", "Unknown")
 
             if norm_series:
