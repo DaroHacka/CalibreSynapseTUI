@@ -361,6 +361,10 @@ class CalibreUI:
                     series_name = str(s).strip().lower()
                     break
 
+            # Skip "standalone novels" - treat these as standalone books, not series
+            if series_name == "standalone novels":
+                series_name = ""
+
             for raw_lbl in label_values:
                 key = raw_lbl.strip().lower()
                 if not key:
